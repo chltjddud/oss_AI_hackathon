@@ -1,60 +1,81 @@
 import React from 'react';
+import { fetchPublicBenefits, fetchYouthPolicies } from '@/lib/api';
 
-export default function Home() {
+export default async function Home() {
+  // Fetch real data from APIs
+  const benefitsData = await fetchPublicBenefits(1, 6);
+  // Optional: fetch youth policies as well
+  // const youthData = await fetchYouthPolicies(1, 6);
+
+  // Extract the list from the public data portal response
+  // Typically it's in data.data or data.response.body.items
+  const items = benefitsData?.data || [];
+
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="min-h-screen flex flex-col bg-emerald-50 text-slate-800">
+      <header className="sticky top-0 z-50 w-full border-b border-emerald-200 bg-white/95 backdrop-blur">
         <div className="container mx-auto flex h-14 items-center px-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">순천</span>
+            <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
+              <span className="text-white font-bold text-sm">에코</span>
             </div>
-            <span className="font-bold text-lg text-primary">순천시 혜택 모음</span>
+            <span className="font-bold text-lg text-emerald-600">순천시 에코 혜택 모음</span>
           </div>
           <nav className="ml-auto flex items-center gap-4 text-sm font-medium">
-            <a href="#" className="transition-colors hover:text-primary text-foreground/80">맞춤혜택 찾기</a>
-            <a href="#" className="transition-colors hover:text-primary text-foreground/80">분야별 정책</a>
-            <a href="#" className="transition-colors hover:text-primary text-foreground/80">공지사항</a>
+            <a href="#" className="transition-colors hover:text-emerald-500 text-slate-600">맞춤혜택 찾기</a>
+            <a href="#" className="transition-colors hover:text-emerald-500 text-slate-600">분야별 정책</a>
+            <a href="#" className="transition-colors hover:text-emerald-500 text-slate-600">공지사항</a>
           </nav>
         </div>
       </header>
 
       <main className="flex-1 container mx-auto px-4 py-8">
-        <section className="mb-12 text-center py-12 bg-primary/5 rounded-3xl mt-4">
-          <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl mb-4 text-foreground">
-            내게 맞는 혜택을 <span className="text-primary">한눈에</span>
+        <section className="mb-12 text-center py-12 bg-white rounded-3xl mt-4 shadow-sm border border-emerald-100">
+          <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl mb-4 text-slate-800">
+            자연과 함께하는 <span className="text-emerald-500">순천의 혜택</span>
           </h1>
-          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            순천시, 전남광주통합특별시, 그리고 전국민을 대상으로 하는 모든 정책과 지원금을 모았습니다.
+          <p className="text-lg text-slate-500 mb-8 max-w-2xl mx-auto">
+            순천시와 전국에서 지원하는 맞춤형 혜택들을 한눈에 확인하세요.
           </p>
           <div className="flex justify-center gap-4">
-            <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-10 px-8 py-2">
+            <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-500 text-white shadow hover:bg-emerald-600 h-10 px-8 py-2">
               내 맞춤 혜택 찾기
             </button>
-            <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-10 px-8 py-2">
+            <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors border border-emerald-200 bg-white shadow-sm hover:bg-emerald-50 text-emerald-600 h-10 px-8 py-2">
               전체 혜택 보기
             </button>
           </div>
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Placeholder for policy cards */}
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="rounded-xl border bg-card text-card-foreground shadow">
-              <div className="flex flex-col space-y-1.5 p-6">
-                <h3 className="font-semibold leading-none tracking-tight">청년 전세자금 대출 이자 지원</h3>
-                <p className="text-sm text-muted-foreground pt-2">순천시에 거주하는 무주택 청년들의 주거 안정을 위해 전세자금 대출 이자를 지원합니다.</p>
+          {items.length > 0 ? (
+            items.map((item: any, index: number) => (
+              <div key={index} className="rounded-xl border border-emerald-100 bg-white text-slate-800 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all">
+                <div className="flex flex-col space-y-1.5 p-6">
+                  <h3 className="font-semibold leading-none tracking-tight break-keep text-emerald-700">
+                    {item.서비스명 || item.svcNm || '정책 이름 없음'}
+                  </h3>
+                  <p className="text-sm text-slate-500 pt-3 line-clamp-3">
+                    {item.서비스목적 || item.svcPpo || '상세 내용이 제공되지 않았습니다.'}
+                  </p>
+                </div>
+                <div className="p-6 pt-0 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-600 border-emerald-200">
+                    {item.소관기관명 || item.jrsdDptAllNm || '국가/지자체'}
+                  </span>
+                  {item.지원유형 && (
+                    <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600 border-slate-200">
+                      {item.지원유형}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="p-6 pt-0 flex gap-2">
-                <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary border-transparent">
-                  #청년
-                </span>
-                <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground border-transparent">
-                  #주거
-                </span>
-              </div>
+            ))
+          ) : (
+            <div className="col-span-3 text-center py-12 text-slate-500">
+              데이터를 불러오는 중이거나 아직 API 키 승인이 완료되지 않았습니다.
             </div>
-          ))}
+          )}
         </section>
       </main>
       
