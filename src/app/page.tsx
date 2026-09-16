@@ -22,7 +22,7 @@ export default async function Home() {
               alt="순천시 CI 로고"
               width={75}
               height={32}
-              className="h-8 w-auto object-contain"
+              style={{ width: 'auto', height: '32px' }}
               priority
             />
             <span className="font-bold text-lg text-emerald-700 tracking-tight">순천시 에코 혜택 모음</span>
