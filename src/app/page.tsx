@@ -50,23 +50,40 @@ export default async function Home() {
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {items.length > 0 ? (
             items.map((item: any, index: number) => (
-              <div key={index} className="rounded-xl border border-emerald-100 bg-white text-slate-800 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all">
-                <div className="flex flex-col space-y-1.5 p-6">
-                  <h3 className="font-semibold leading-none tracking-tight break-keep text-emerald-700">
+              <div key={index} className="rounded-xl border border-emerald-100 bg-white text-slate-800 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all flex flex-col justify-between">
+                <div className="flex flex-col space-y-2 p-6">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
+                      {item.소관기관명 || item.jrsdDptAllNm || '국가/지자체'}
+                    </span>
+                    {item.서비스분야 && (
+                      <span className="text-xs text-slate-400">
+                        {item.서비스분야}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-bold text-lg leading-snug break-keep text-emerald-800 pt-1">
                     {item.서비스명 || item.svcNm || '정책 이름 없음'}
                   </h3>
-                  <p className="text-sm text-slate-500 pt-3 line-clamp-3">
-                    {item.서비스목적 || item.svcPpo || '상세 내용이 제공되지 않았습니다.'}
+                  <p className="text-sm text-slate-600 pt-1 line-clamp-3 leading-relaxed">
+                    {item.서비스목적요약 || item.서비스목적 || item.지원내용 || item.svcPpo || '상세 내용이 제공되지 않았습니다.'}
                   </p>
                 </div>
-                <div className="p-6 pt-0 flex flex-wrap gap-2">
-                  <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-600 border-emerald-200">
-                    {item.소관기관명 || item.jrsdDptAllNm || '국가/지자체'}
-                  </span>
-                  {item.지원유형 && (
-                    <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600 border-slate-200">
+                <div className="p-6 pt-0 flex items-center justify-between gap-2 border-t border-slate-50 mt-auto pt-4">
+                  {item.지원유형 ? (
+                    <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 border-slate-200">
                       {item.지원유형}
                     </span>
+                  ) : <span />}
+                  {item.상세조회URL && (
+                    <a
+                      href={item.상세조회URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-1"
+                    >
+                      상세보기 &rarr;
+                    </a>
                   )}
                 </div>
               </div>

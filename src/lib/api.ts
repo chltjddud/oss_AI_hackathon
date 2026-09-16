@@ -39,8 +39,8 @@ export async function fetchPublicBenefits(page = 1, perPage = 10) {
     throw new Error('PUBLIC_DATA_API_KEY is not defined');
   }
 
-  // 공공데이터포털(보조금24) 서비스 목록 엔드포인트 예시 (실제 신청한 API에 따라 변경될 수 있음)
-  const url = `https://api.odcloud.kr/api/gov24/v1/serviceList?page=${page}&perPage=${perPage}&serviceKey=${apiKey}`;
+  // 행정안전부 대한민국 공공서비스(보조금24) v3 엔드포인트
+  const url = `https://api.odcloud.kr/api/gov24/v3/serviceList?page=${page}&perPage=${perPage}&serviceKey=${apiKey}`;
 
   try {
     const response = await fetch(url, {
