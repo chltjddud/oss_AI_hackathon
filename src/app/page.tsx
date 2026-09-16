@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import { fetchPublicBenefits, fetchYouthPolicies } from '@/lib/api';
 
 export default async function Home() {
@@ -15,11 +16,16 @@ export default async function Home() {
     <div className="min-h-screen flex flex-col bg-emerald-50 text-slate-800">
       <header className="sticky top-0 z-50 w-full border-b border-emerald-200 bg-white/95 backdrop-blur">
         <div className="container mx-auto flex h-14 items-center px-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">에코</span>
-            </div>
-            <span className="font-bold text-lg text-emerald-600">순천시 에코 혜택 모음</span>
+          <div className="flex items-center gap-3">
+            <Image
+              src="/suncheon-logo.svg"
+              alt="순천시 CI 로고"
+              width={75}
+              height={32}
+              className="h-8 w-auto object-contain"
+              priority
+            />
+            <span className="font-bold text-lg text-emerald-700 tracking-tight">순천시 에코 혜택 모음</span>
           </div>
           <nav className="ml-auto flex items-center gap-4 text-sm font-medium">
             <a href="#" className="transition-colors hover:text-emerald-500 text-slate-600">맞춤혜택 찾기</a>
