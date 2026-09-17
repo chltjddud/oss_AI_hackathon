@@ -1,16 +1,18 @@
 import React from 'react';
 import Image from 'next/image';
-import { fetchPublicBenefits, fetchYouthPolicies } from '@/lib/api';
+import { fetchPublicBenefits } from '@/lib/api';
+import { getCrawledData } from '@/lib/crawler';
+import CrawledSection from '@/components/CrawledSection';
+
+export const revalidate = 600; // 10 minutes
 
 export default async function Home() {
   // Fetch real data from APIs
-  const benefitsData = await fetchPublicBenefits(1, 6);
-  // Optional: fetch youth policies as well
-  // const youthData = await fetchYouthPolicies(1, 6);
-
-  // Extract the list from the public data portal response
-  // Typically it's in data.data or data.response.body.items
+  const benefitsData = await fetchPublicBenefits(1, 18);
   const items = benefitsData?.data || [];
+
+  const crawledData = await getCrawledData(false);
+  const formattedTime = new Date(crawledData.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   return (
     <div className="min-h-screen flex flex-col bg-emerald-50 text-slate-800">
@@ -53,57 +55,18 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {items.length > 0 ? (
-            items.map((item: any, index: number) => (
-              <div key={index} className="rounded-xl border border-emerald-100 bg-white text-slate-800 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all flex flex-col justify-between">
-                <div className="flex flex-col space-y-2 p-6">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200">
-                      {item.소관기관명 || item.jrsdDptAllNm || '국가/지자체'}
-                    </span>
-                    {item.서비스분야 && (
-                      <span className="text-xs text-slate-400">
-                        {item.서비스분야}
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="font-bold text-lg leading-snug break-keep text-emerald-800 pt-1">
-                    {item.서비스명 || item.svcNm || '정책 이름 없음'}
-                  </h3>
-                  <p className="text-sm text-slate-600 pt-1 line-clamp-3 leading-relaxed">
-                    {item.서비스목적요약 || item.서비스목적 || item.지원내용 || item.svcPpo || '상세 내용이 제공되지 않았습니다.'}
-                  </p>
-                </div>
-                <div className="p-6 pt-0 flex items-center justify-between gap-2 border-t border-slate-50 mt-auto pt-4">
-                  {item.지원유형 ? (
-                    <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 border-slate-200">
-                      {item.지원유형}
-                    </span>
-                  ) : <span />}
-                  {item.상세조회URL && (
-                    <a
-                      href={item.상세조회URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-1"
-                    >
-                      상세보기 &rarr;
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="col-span-3 text-center py-12 text-slate-500">
-              데이터를 불러오는 중이거나 아직 API 키 승인이 완료되지 않았습니다.
-            </div>
-          )}
+        <section className="mb-12">
+          <CrawledSection
+            initialWelfare={crawledData.welfare}
+            initialNotice={crawledData.notice}
+            gov24Items={items}
+            lastUpdated={formattedTime}
+          />
         </section>
       </main>
       
-      <footer className="border-t py-6 md:py-0 bg-muted/20">
-        <div className="container mx-auto flex flex-col items-center justify-between gap-4 md:h-16 md:flex-row px-4 text-sm text-muted-foreground">
+      <footer className="border-t py-6 md:py-0 bg-emerald-900">
+        <div className="container mx-auto flex flex-col items-center justify-center h-16 px-4 text-sm text-emerald-200">
           <p>
             © 2026 순천시 혜택 모음. Open Source AI Hackathon.
           </p>
