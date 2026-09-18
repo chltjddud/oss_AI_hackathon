@@ -263,9 +263,9 @@ export default function CrawledSection({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-2 bg-[#DDF5E8] p-1.5 rounded-full w-full sm:w-auto overflow-x-auto">
           {[
-            { id: 'suncheon', label: '📍 순천' },
-            { id: 'jeonnam', label: '📍 전남' },
-            { id: 'national', label: '📍 전국' }
+            { id: 'suncheon', label: '순천' },
+            { id: 'jeonnam', label: '전남' },
+            { id: 'national', label: '전국' }
           ].map(r => (
             <button
               key={r.id}
@@ -526,7 +526,7 @@ export default function CrawledSection({
                   </div>
                   {item.categories.length > 0 && (
                     <span className="inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium bg-[#ECFDF5] text-[#047857] border-[#D5F2E3]">
-                      🌿 {item.categories[0]} {item.categories.length > 1 && '외'}
+                      {item.categories[0]} {item.categories.length > 1 && '외'}
                     </span>
                   )}
                 </div>

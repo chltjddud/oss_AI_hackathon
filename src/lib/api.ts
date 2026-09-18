@@ -15,7 +15,7 @@ export async function fetchYouthPolicies(pageIndex = 1, display = 10) {
   const url = `https://www.youthcenter.go.kr/opi/empList.do?openApiVlak=${apiKey}&display=${display}&pageIndex=${pageIndex}`;
   
   try {
-    const response = await fetch(url, { cache: 'no-store' });
+    const response = await fetch(url, { next: { revalidate: 600 }, signal: AbortSignal.timeout(6000) });
     if (!response.ok) {
       throw new Error('Failed to fetch youth policies');
     }
@@ -32,28 +32,32 @@ export async function fetchYouthPolicies(pageIndex = 1, display = 10) {
  * 행정안전부_대한민국 공공서비스(혜택) 정보 호출 함수 (보조금24)
  * @param page 페이지 번호
  * @param perPage 한 페이지에 보여줄 개수
+ * @param orgFilter 소관기관명 필터 (기본값: '순천')
  */
-export async function fetchPublicBenefits(page = 1, perPage = 10) {
+export async function fetchPublicBenefits(page = 1, perPage = 50, orgFilter = '순천') {
   const apiKey = process.env.PUBLIC_DATA_API_KEY;
   if (!apiKey) {
     throw new Error('PUBLIC_DATA_API_KEY is not defined');
   }
 
   // 행정안전부 대한민국 공공서비스(보조금24) v3 엔드포인트
-  const url = `https://api.odcloud.kr/api/gov24/v3/serviceList?page=${page}&perPage=${perPage}&serviceKey=${apiKey}`;
+  let url = `https://api.odcloud.kr/api/gov24/v3/serviceList?page=${page}&perPage=${perPage}&serviceKey=${apiKey}`;
+  if (orgFilter) {
+    url += `&cond%5B%EC%86%8C%EA%B4%80%EA%B8%B0%EA%B4%80%EB%AA%85%3A%3ALIKE%5D=${encodeURIComponent(orgFilter)}`;
+  }
 
   try {
     const response = await fetch(url, {
-      cache: 'no-store',
+      next: { revalidate: 600 },
       headers: {
         'Accept': 'application/json'
-      }
+      },
+      signal: AbortSignal.timeout(8000)
     });
     
     if (!response.ok) {
       const errorText = await response.text();
       console.log(`API Error (${response.status}):`, errorText);
-      // 에러를 던지지 않고 안전하게 빈 데이터를 반환하여 화면이 깨지지 않도록 함
       return { data: [] };
     }
     

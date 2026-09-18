@@ -1,77 +1,86 @@
 import React from 'react';
+import Link from 'next/link';
 import Image from 'next/image';
-import { fetchPublicBenefits } from '@/lib/api';
-import { getCrawledData } from '@/lib/crawler';
-import CrawledSection from '@/components/CrawledSection';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
+import SuncheonWindCanvas from '@/components/SuncheonWindCanvas';
+import { Bell, Layers, ArrowRight } from 'lucide-react';
 
-export const revalidate = 600; // 10 minutes
-
-export default async function Home() {
-  // Fetch real data from APIs
-  const benefitsData = await fetchPublicBenefits(1, 18);
-  const items = benefitsData?.data || [];
-
-  const crawledData = await getCrawledData(false);
-  const formattedTime = new Date(crawledData.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
+export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col bg-emerald-50 text-slate-800">
-      <header className="sticky top-0 z-50 w-full border-b border-emerald-200 bg-white/95 backdrop-blur">
-        <div className="container mx-auto flex h-14 items-center px-4">
-          <div className="flex items-center gap-3">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-emerald-50/40 via-white to-slate-50 text-slate-800 relative overflow-hidden">
+      <Navbar />
+
+      <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-16 relative">
+        <SuncheonWindCanvas />
+
+        <div className="max-w-3xl w-full text-center relative z-10">
+          {/* Suncheon City Logo Badge */}
+          <div className="inline-flex items-center justify-center p-3 rounded-3xl bg-white border border-emerald-200/80 shadow-xs mb-8">
             <Image
               src="/suncheon-logo.svg"
-              alt="순천시 CI 로고"
-              width={75}
-              height={32}
-              style={{ width: 'auto', height: '32px' }}
+              alt="순천시 로고"
+              width={130}
+              height={55}
+              className="h-12 w-auto"
               priority
             />
-            <span className="font-bold text-lg text-emerald-700 tracking-tight">순천시 에코 혜택 모음</span>
           </div>
-          <nav className="ml-auto flex items-center gap-4 text-sm font-medium">
-            <a href="#" className="transition-colors hover:text-emerald-500 text-slate-600">맞춤혜택 찾기</a>
-            <a href="#" className="transition-colors hover:text-emerald-500 text-slate-600">분야별 정책</a>
-            <a href="#" className="transition-colors hover:text-emerald-500 text-slate-600">공지사항</a>
-          </nav>
-        </div>
-      </header>
 
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <section className="mb-12 text-center py-12 bg-white rounded-3xl mt-4 shadow-sm border border-emerald-100">
-          <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl mb-4 text-slate-800">
-            자연과 함께하는 <span className="text-emerald-500">순천의 혜택</span>
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight mb-4 leading-tight">
+            순천시 혜택 모음
           </h1>
-          <p className="text-lg text-slate-500 mb-8 max-w-2xl mx-auto">
-            순천시와 전국에서 지원하는 맞춤형 혜택들을 한눈에 확인하세요.
-          </p>
-          <div className="flex justify-center gap-4">
-            <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-500 text-white shadow hover:bg-emerald-600 h-10 px-8 py-2">
-              내 맞춤 혜택 찾기
-            </button>
-            <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors border border-emerald-200 bg-white shadow-sm hover:bg-emerald-50 text-emerald-600 h-10 px-8 py-2">
-              전체 혜택 보기
-            </button>
-          </div>
-        </section>
 
-        <section className="mb-12">
-          <CrawledSection
-            initialWelfare={crawledData.welfare}
-            initialNotice={crawledData.notice}
-            gov24Items={items}
-            lastUpdated={formattedTime}
-          />
-        </section>
-      </main>
-      
-      <footer className="border-t py-6 md:py-0 bg-emerald-900">
-        <div className="container mx-auto flex flex-col items-center justify-center h-16 px-4 text-sm text-emerald-200">
-          <p>
-            © 2026 순천시 혜택 모음. Open Source AI Hackathon.
+          <p className="text-base sm:text-lg text-slate-600 max-w-xl mx-auto mb-12 leading-relaxed">
+            순천시민을 위한 실시간 시정 소식과 다양한 공공 지원 정책을 한곳에서 확인하세요.
           </p>
+
+          {/* Exactly TWO Main Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-xl mx-auto">
+            <Link
+              href="/notices"
+              data-hero-btn="notices"
+              className="group p-6 sm:p-8 rounded-3xl bg-white/95 backdrop-blur-xs border-2 border-emerald-200/90 hover:border-emerald-500 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col items-center text-center justify-between relative z-10 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-colors duration-300">
+                <Bell className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-emerald-700 transition-colors mb-2">
+                순천시 공지보기
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mb-6">
+                순천시청, 청년센터, 문화재단, 순천대학교의 실시간 공지사항을 확인합니다.
+              </p>
+              <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-emerald-700 group-hover:translate-x-1 transition-transform">
+                <span>공지사항 바로가기</span>
+                <ArrowRight className="w-4 h-4" />
+              </div>
+            </Link>
+
+            <Link
+              href="/policies"
+              data-hero-btn="policies"
+              className="group p-6 sm:p-8 rounded-3xl bg-white/95 backdrop-blur-xs border-2 border-emerald-200/90 hover:border-emerald-500 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col items-center text-center justify-between relative z-10 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-colors duration-300">
+                <Layers className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-emerald-700 transition-colors mb-2">
+                순천시 지원보기
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mb-6">
+                주거, 일자리, 문화, 보육 등 순천시와 중앙정부의 맞춤 지원 정책을 확인합니다.
+              </p>
+              <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-emerald-700 group-hover:translate-x-1 transition-transform">
+                <span>지원 정책 바로가기</span>
+                <ArrowRight className="w-4 h-4" />
+              </div>
+            </Link>
+          </div>
         </div>
-      </footer>
+      </main>
+
+      <Footer />
     </div>
   );
 }

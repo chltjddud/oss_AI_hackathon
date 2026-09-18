@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "순천시 에코 혜택 모음 | 순천시 맞춤 복지·지원 포털",
-  description: "자연과 함께하는 순천시 맞춤형 복지 및 보조금 지원 포털",
+  title: "순천시 혜택 모음 | 순천시 맞춤 복지·지원 포털",
+  description: "순천시 맞춤형 복지 및 보조금 지원 포털",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

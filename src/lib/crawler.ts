@@ -37,7 +37,7 @@ async function crawlSuncheonCity(): Promise<Omit<CrawledItem, 'category'>[]> {
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    $('table.bbsList tbody tr').each((_, tr) => {
+    $('table.bbsList tbody tr').each((idx, tr) => {
       const tds = $(tr).find('td');
       if (tds.length >= 4) {
         const no = $(tds[0]).text().trim();
@@ -52,8 +52,9 @@ async function crawlSuncheonCity(): Promise<Omit<CrawledItem, 'category'>[]> {
           const fullLink = href.startsWith('http')
             ? href
             : `https://www.suncheon.go.kr/kr/news/0001/0001/${href}`;
+          const cleanNo = (!no || no === '공지') ? `pinned-${idx}` : no;
           results.push({
-            id: `city-${no || Math.random().toString(36).substring(7)}`,
+            id: `city-${cleanNo}-${idx}`,
             title,
             link: fullLink,
             source: '순천시청',
@@ -82,7 +83,7 @@ async function crawlSuncheonYouth(): Promise<Omit<CrawledItem, 'category'>[]> {
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    $('table.bbsList tbody tr').each((_, tr) => {
+    $('table.bbsList tbody tr').each((idx, tr) => {
       const tds = $(tr).find('td');
       if (tds.length >= 3) {
         const no = $(tds[0]).text().trim();
@@ -96,8 +97,9 @@ async function crawlSuncheonYouth(): Promise<Omit<CrawledItem, 'category'>[]> {
           const fullLink = href.startsWith('http')
             ? href
             : `https://www.suncheon.go.kr/youth/0001/0002/${href}`;
+          const cleanNo = (!no || no === '공지') ? `pinned-${idx}` : no;
           results.push({
-            id: `youth-${no || Math.random().toString(36).substring(7)}`,
+            id: `youth-${cleanNo}-${idx}`,
             title,
             link: fullLink,
             source: '순천청년정책',
@@ -171,7 +173,7 @@ async function crawlSuncheonUniv(): Promise<Omit<CrawledItem, 'category'>[]> {
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    $('table tbody tr').each((_, tr) => {
+    $('table tbody tr').each((idx, tr) => {
       const tds = $(tr).find('td');
       if (tds.length >= 4) {
         const no = $(tds[0]).text().trim();
@@ -186,8 +188,9 @@ async function crawlSuncheonUniv(): Promise<Omit<CrawledItem, 'category'>[]> {
           const fullLink = href.startsWith('http')
             ? href
             : `https://www.scnu.ac.kr${href}`;
+          const cleanNo = (!no || no === '공지') ? `pinned-${idx}` : no;
           results.push({
-            id: `scnu-${no || Math.random().toString(36).substring(7)}`,
+            id: `scnu-${cleanNo}-${idx}`,
             title,
             link: fullLink,
             source: '순천대학교',
@@ -280,13 +283,14 @@ ${promptList}
   ...
 ]`;
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { responseMimeType: 'application/json' }
-      })
+      }),
+      signal: AbortSignal.timeout(7000)
     });
 
     if (res.ok) {
