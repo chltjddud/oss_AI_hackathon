@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getCrawledData } from '@/lib/crawler';
-import { fetchPublicBenefits } from '@/lib/api';
+import { fetchSuncheonApplicableBenefits } from '@/lib/api';
 
 export async function POST() {
   try {
-    const [crawled, gov24] = await Promise.all([
+    const [crawled, applicable] = await Promise.all([
       getCrawledData(false),
-      fetchPublicBenefits(1, 30)
+      fetchSuncheonApplicableBenefits()
     ]);
 
     const policiesToInsert: Array<{
@@ -37,18 +37,18 @@ export async function POST() {
       });
     });
 
-    // Gov24 items
-    (gov24?.data || []).forEach((item: any) => {
+    // Unified applicable items (Gov24, Jeonnam, Youth, Central)
+    applicable.forEach(item => {
       policiesToInsert.push({
-        title: item.서비스명 || item.svcNm || '공공서비스',
-        category: item.서비스분야 || '공공복지',
-        org: item.소관기관명 || '정부/지자체',
-        dept: item.소관기관명 || '',
-        target: item.지원유형 || item.선정기준 || '요건 충족자',
-        description: item.서비스목적요약 || item.지원내용 || '',
-        url: item.상세조회URL || '',
-        deadline: null,
-        region: 'national'
+        title: item.title,
+        category: item.category || '공공복지',
+        org: item.org || '정부/지자체',
+        dept: item.dept || '',
+        target: item.target || '요건 충족 순천시민/국민',
+        description: item.description || '',
+        url: item.url || '',
+        deadline: item.deadline,
+        region: item.scope
       });
     });
 

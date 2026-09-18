@@ -1,24 +1,42 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, ExternalLink, Layers, Building2, Bookmark, X, Calendar, Tag } from 'lucide-react';
+import { Search, ExternalLink, Layers, Tag, Calendar, X, Compass, Sparkles } from 'lucide-react';
 import { CrawledItem } from '@/lib/crawler';
-import { Gov24Item, Benefit } from './SupportSection';
+import { ApplicablePolicy } from '@/lib/api';
+import { Gov24Item } from './SupportSection';
 
 interface PolicySectionProps {
   initialWelfare: CrawledItem[];
-  gov24Items: Gov24Item[];
+  applicablePolicies?: ApplicablePolicy[];
+  gov24Items?: Gov24Item[];
+}
+
+export interface UnifiedPolicy {
+  id: string;
+  title: string;
+  scope: 'suncheon' | 'jeonnam' | 'national' | 'youth';
+  scopeLabel: string;
+  org: string;
+  dept: string;
+  categories: string[];
+  target: string;
+  description: string;
+  deadline: string | null;
+  postedAt: string;
+  url: string;
 }
 
 function inferCategories(text: string): string[] {
   const result: string[] = [];
+  if (text.includes('청년') || text.includes('대학생') || text.includes('청소년')) result.push('청년·청소년');
   if (text.includes('건강') || text.includes('의료') || text.includes('보건') || text.includes('치료')) result.push('보건·의료');
   if (text.includes('주거') || text.includes('전세') || text.includes('월세') || text.includes('임대') || text.includes('주택')) result.push('주거·자립');
-  if (text.includes('일자리') || text.includes('취업') || text.includes('창업') || text.includes('인턴') || text.includes('기업')) result.push('일자리·창업');
+  if (text.includes('일자리') || text.includes('취업') || text.includes('창업') || text.includes('인턴') || text.includes('기업') || text.includes('고용')) result.push('일자리·창업');
   if (text.includes('출산') || text.includes('임산부') || text.includes('영유아') || text.includes('난임')) result.push('임신·출산');
   if (text.includes('보육') || text.includes('교육') || text.includes('장학') || text.includes('학생') || text.includes('어린이')) result.push('보육·교육');
   if (text.includes('생활') || text.includes('생계') || text.includes('지원금') || text.includes('수당') || text.includes('안정')) result.push('생활안정');
-  if (text.includes('농업') || text.includes('축산') || text.includes('농가') || text.includes('원예') || text.includes('과수') || text.includes('귀농')) result.push('농림축산어업');
+  if (text.includes('농업') || text.includes('축산') || text.includes('농가') || text.includes('원예') || text.includes('과수') || text.includes('귀농') || text.includes('어촌')) result.push('농림축산어업');
   if (text.includes('안전') || text.includes('보험') || text.includes('재난') || text.includes('상품권')) result.push('행정·안전');
   if (text.includes('문화') || text.includes('예술') || text.includes('체육') || text.includes('공연') || text.includes('전시')) result.push('문화·체육');
   if (text.includes('돌봄') || text.includes('장애인') || text.includes('양로') || text.includes('어르신')) result.push('보호·돌봄');
@@ -31,8 +49,10 @@ function inferCategories(text: string): string[] {
 
 export default function PolicySection({
   initialWelfare,
-  gov24Items
+  applicablePolicies = [],
+  gov24Items = []
 }: PolicySectionProps) {
+  const [selectedScope, setSelectedScope] = useState<'all' | 'suncheon' | 'youth' | 'jeonnam' | 'national'>('all');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,61 +60,105 @@ export default function PolicySection({
 
   // Convert raw data into unified Policy items
   const policies = useMemo(() => {
-    const list: Benefit[] = [];
+    const list: UnifiedPolicy[] = [];
+    const seenIds = new Set<string>();
 
-    // 1. Crawled welfare items
+    // 1. Crawled welfare items (Suncheon City Hall, Youth Center, Culture Foundation)
     initialWelfare.forEach((item) => {
+      const isYouth = item.source?.includes('청년') || item.title?.includes('청년');
       const textToScan = `${item.title} ${item.dept || ''} ${item.reason || ''}`;
+      const id = item.id;
+      seenIds.add(id);
+
       list.push({
-        id: item.id,
+        id,
         title: item.title,
-        region: 'suncheon',
+        scope: isYouth ? 'youth' : 'suncheon',
+        scopeLabel: isYouth ? '청년 맞춤' : '순천시',
         org: item.source || '순천시청',
         dept: item.dept || '순천시',
         categories: inferCategories(textToScan),
-        lifeStages: [],
-        households: [],
         target: item.dept ? `${item.dept} 공고 요건 대상자` : '순천시민 및 관내 요건 충족자',
+        description: item.reason || '',
         deadline: null,
         postedAt: item.date || '상시',
         url: item.link || '#',
       });
     });
 
-    // 2. Gov24 items (Suncheon municipal policies)
-    gov24Items.forEach((item, idx) => {
-      const title = item.서비스명 || item.svcNm || '순천시 지원 정책';
-      const summary = item.서비스목적요약 || item.지원내용 || '';
-      const textToScan = `${title} ${summary} ${item.서비스분야 || ''}`;
-      const rawCat = (item.서비스분야 as string) || '';
-      const cats = rawCat ? [rawCat.trim()] : inferCategories(textToScan);
+    // 2. Applicable Policies (Suncheon, Jeonnam, Youth, Central Government)
+    if (applicablePolicies.length > 0) {
+      applicablePolicies.forEach((item) => {
+        if (seenIds.has(item.id)) return;
+        seenIds.add(item.id);
 
-      const rawOrg = (item.소관기관명 as string) || '';
-      const org = rawOrg.includes('순천') ? '순천시' : (rawOrg || '순천시');
+        const textToScan = `${item.title} ${item.description || ''} ${item.category || ''}`;
+        const rawCat = item.category || '';
+        const cats = rawCat ? [rawCat.trim()] : inferCategories(textToScan);
 
-      list.push({
-        id: `gov24-${idx}`,
-        title,
-        region: 'suncheon',
-        org,
-        dept: (item.부서명 as string) || (item.소관기관명 as string) || '순천시',
-        categories: cats,
-        lifeStages: [],
-        households: [],
-        target: (item.지원대상 as string) || (item.지원유형 as string) || summary || '순천시 해당 요건 대상자',
-        deadline: (item.신청기한 as string) || null,
-        postedAt: (item.신청기한 as string) || '상시접수',
-        url: (item.상세조회URL as string) || '#',
+        list.push({
+          id: item.id,
+          title: item.title,
+          scope: item.scope,
+          scopeLabel: item.scopeLabel,
+          org: item.org,
+          dept: item.dept,
+          categories: cats,
+          target: item.target,
+          description: item.description,
+          deadline: item.deadline,
+          postedAt: item.deadline || '상시접수',
+          url: item.url,
+        });
       });
-    });
+    } else if (gov24Items.length > 0) {
+      // Fallback for legacy gov24Items
+      gov24Items.forEach((item, idx) => {
+        const title = (item.서비스명 || item.svcNm || '순천시 지원 정책') as string;
+        const summary = (item.서비스목적요약 || item.지원내용 || '') as string;
+        const textToScan = `${title} ${summary} ${item.서비스분야 || ''}`;
+        const rawCat = (item.서비스분야 as string) || '';
+        const cats = rawCat ? [rawCat.trim()] : inferCategories(textToScan);
+        const org = (item.소관기관명 as string) || '순천시';
+        const isYouth = title.includes('청년');
+
+        list.push({
+          id: `gov24-${idx}`,
+          title,
+          scope: isYouth ? 'youth' : 'suncheon',
+          scopeLabel: isYouth ? '청년 맞춤' : '순천시',
+          org: org.includes('순천') ? '순천시' : org,
+          dept: (item.부서명 as string) || org,
+          categories: cats,
+          target: (item.지원대상 as string) || summary || '순천시민 요건 충족자',
+          description: summary,
+          deadline: (item.신청기한 as string) || null,
+          postedAt: (item.신청기한 as string) || '상시접수',
+          url: (item.상세조회URL as string) || '#',
+        });
+      });
+    }
 
     return list;
-  }, [initialWelfare, gov24Items]);
+  }, [initialWelfare, applicablePolicies, gov24Items]);
+
+  // Compute counts for scope tabs
+  const scopeCounts = useMemo(() => {
+    return {
+      all: policies.length,
+      suncheon: policies.filter(p => p.scope === 'suncheon').length,
+      youth: policies.filter(p => p.scope === 'youth').length,
+      jeonnam: policies.filter(p => p.scope === 'jeonnam').length,
+      national: policies.filter(p => p.scope === 'national').length,
+    };
+  }, [policies]);
 
   // Compute ONLY categories that actually exist in the data (count > 0)
   const availableCategories = useMemo(() => {
     const map = new Map<string, number>();
     policies.forEach(p => {
+      // If scope is selected, count only within selected scope
+      if (selectedScope !== 'all' && p.scope !== selectedScope) return;
       p.categories.forEach(c => {
         if (c && c.trim()) {
           map.set(c, (map.get(c) || 0) + 1);
@@ -104,14 +168,15 @@ export default function PolicySection({
 
     return Array.from(map.entries())
       .filter(([_, count]) => count > 0)
-      .sort((a, b) => b[1] - a[1]) // Most frequent categories first
+      .sort((a, b) => b[1] - a[1])
       .map(([cat]) => cat);
-  }, [policies]);
+  }, [policies, selectedScope]);
 
-  // Compute ONLY organizations that actually have policies
+  // Compute organizations that have policies in selected scope
   const availableOrgs = useMemo(() => {
     const map = new Map<string, number>();
     policies.forEach(p => {
+      if (selectedScope !== 'all' && p.scope !== selectedScope) return;
       if (p.org) {
         map.set(p.org, (map.get(p.org) || 0) + 1);
       }
@@ -119,13 +184,17 @@ export default function PolicySection({
 
     const orgList = Array.from(map.entries())
       .filter(([_, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15) // Top 15 agencies
       .map(([org, count]) => ({ label: org, value: org, count }));
 
+    const totalCount = policies.filter(p => selectedScope === 'all' || p.scope === selectedScope).length;
+
     return [
-      { label: '전체 기관', value: 'all', count: policies.length },
+      { label: '전체 기관', value: 'all', count: totalCount },
       ...orgList
     ];
-  }, [policies]);
+  }, [policies, selectedScope]);
 
   const toggleCategory = (cat: string) => {
     setSelectedCategories(prev =>
@@ -134,6 +203,7 @@ export default function PolicySection({
   };
 
   const clearAllFilters = () => {
+    setSelectedScope('all');
     setSelectedCategories([]);
     setSelectedOrg('all');
     setSearchQuery('');
@@ -141,6 +211,7 @@ export default function PolicySection({
 
   const filteredPolicies = useMemo(() => {
     const result = policies.filter(p => {
+      const matchesScope = selectedScope === 'all' || p.scope === selectedScope;
       const matchesCategory = selectedCategories.length === 0 ||
         selectedCategories.some(c => p.categories.includes(c));
       const matchesOrg = selectedOrg === 'all' || p.org === selectedOrg;
@@ -149,9 +220,10 @@ export default function PolicySection({
         p.title.toLowerCase().includes(lowerQ) ||
         p.org.toLowerCase().includes(lowerQ) ||
         p.dept.toLowerCase().includes(lowerQ) ||
-        p.target.toLowerCase().includes(lowerQ);
+        p.target.toLowerCase().includes(lowerQ) ||
+        p.description.toLowerCase().includes(lowerQ);
 
-      return matchesCategory && matchesOrg && matchesSearch;
+      return matchesScope && matchesCategory && matchesOrg && matchesSearch;
     });
 
     if (sortBy === 'name') {
@@ -161,10 +233,20 @@ export default function PolicySection({
     }
 
     return result;
-  }, [policies, selectedCategories, selectedOrg, searchQuery, sortBy]);
+  }, [policies, selectedScope, selectedCategories, selectedOrg, searchQuery, sortBy]);
 
-  const getCategoryCount = (cat: string) => {
-    return policies.filter(p => p.categories.includes(cat)).length;
+  const getScopeBadgeStyle = (scope: string) => {
+    switch (scope) {
+      case 'youth':
+        return 'bg-sky-50 text-sky-700 border-sky-200';
+      case 'suncheon':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'jeonnam':
+        return 'bg-teal-50 text-teal-700 border-teal-200';
+      case 'national':
+      default:
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    }
   };
 
   return (
@@ -173,17 +255,52 @@ export default function PolicySection({
       <div className="mb-8 text-center py-10 bg-white rounded-3xl shadow-xs border border-emerald-100">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-3">
           <Layers className="w-3.5 h-3.5 text-emerald-600" />
-          순천시 맞춤 지원 및 공공 정책
+          순천시민 신청 가능 공공 혜택 종합 포털
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-3 text-slate-900">
           순천시 <span className="text-emerald-600">지원보기</span>
         </h1>
-        <p className="text-sm sm:text-base text-slate-500 max-w-xl mx-auto px-4">
-          순천시청, 관내 주요 공공기관 및 보조금24에 공식 등록된 순천시민 대상 지원 혜택을 한눈에 확인하세요.
+        <p className="text-sm sm:text-base text-slate-500 max-w-2xl mx-auto px-4 leading-relaxed">
+          순천시청 자체 사업부터 청년 맞춤 정책, 전남광역 지원 및 중앙부처 전국민 혜택까지 순천시민이 누릴 수 있는 모든 지원을 한곳에서 확인하세요.
         </p>
       </div>
 
-      {/* Category Filter Section (Only shows categories with count > 0) */}
+      {/* Scope Navigation Tabs (순천시 / 청년 / 전남광역 / 전국·중앙부처) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-3 mb-6">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          {[
+            { id: 'all', label: '전체 혜택', count: scopeCounts.all },
+            { id: 'suncheon', label: '순천시 자체 혜택', count: scopeCounts.suncheon },
+            { id: 'youth', label: '청년 맞춤 혜택', count: scopeCounts.youth },
+            { id: 'jeonnam', label: '전남광역 혜택', count: scopeCounts.jeonnam },
+            { id: 'national', label: '전국·중앙부처 혜택', count: scopeCounts.national },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setSelectedScope(tab.id as any);
+                setSelectedOrg('all');
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
+                selectedScope === tab.id
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`text-[11px] px-1.5 py-0.2 rounded-full ${
+                selectedScope === tab.id
+                  ? 'bg-emerald-700 text-white'
+                  : 'bg-slate-100 text-slate-500'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Category Filter Section */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 mb-6">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -201,43 +318,36 @@ export default function PolicySection({
           )}
         </div>
 
-        {/* Dynamic Category Chips */}
-        <div className="flex flex-wrap gap-2 mb-5">
+        <div className="flex flex-wrap gap-2">
           {availableCategories.map(cat => {
             const isSelected = selectedCategories.includes(cat);
-            const count = getCategoryCount(cat);
             return (
               <button
                 key={cat}
                 onClick={() => toggleCategory(cat)}
-                className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all border ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
                   isSelected
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-800'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50'
                 }`}
               >
                 {cat}
-                <span className={`text-xs ml-1.5 px-1.5 py-0.2 rounded-full ${
-                  isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
-                }`}>
-                  {count}
-                </span>
               </button>
             );
           })}
         </div>
+      </div>
 
-        <div className="h-px bg-slate-100 w-full mb-4" />
-
-        {/* Agency and Search Filter */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs sm:text-sm font-bold text-slate-700 shrink-0">소관 기관:</span>
-            {availableOrgs.map(o => (
+      {/* Search & Agency Filter Bar */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 mb-6">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          {/* Organization filter pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
+            {availableOrgs.slice(0, 8).map(o => (
               <button
                 key={o.value}
                 onClick={() => setSelectedOrg(o.value)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all border ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all border whitespace-nowrap ${
                   selectedOrg === o.value
                     ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
@@ -248,6 +358,7 @@ export default function PolicySection({
             ))}
           </div>
 
+          {/* Search Input */}
           <div className="relative w-full md:w-64">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -264,7 +375,7 @@ export default function PolicySection({
       {/* Result Status Bar */}
       <div className="flex items-center justify-between mb-4 px-1 text-xs sm:text-sm text-slate-500">
         <div>
-          총 <strong className="text-emerald-700 font-bold">{filteredPolicies.length}</strong>건의 순천 지원 정책이 있습니다.
+          총 <strong className="text-emerald-700 font-bold">{filteredPolicies.length}</strong>건의 지원 정책이 있습니다.
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -279,8 +390,16 @@ export default function PolicySection({
       </div>
 
       {/* Active filter badges */}
-      {(selectedCategories.length > 0 || selectedOrg !== 'all' || searchQuery) && (
+      {(selectedCategories.length > 0 || selectedOrg !== 'all' || searchQuery || selectedScope !== 'all') && (
         <div className="flex flex-wrap items-center gap-1.5 mb-4">
+          {selectedScope !== 'all' && (
+            <button
+              onClick={() => setSelectedScope('all')}
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold hover:bg-emerald-200"
+            >
+              {selectedScope === 'suncheon' ? '순천시' : selectedScope === 'youth' ? '청년맞춤' : selectedScope === 'jeonnam' ? '전남광역' : '전국·중앙부처'} <X className="w-3 h-3" />
+            </button>
+          )}
           {selectedCategories.map(c => (
             <button
               key={c}
@@ -314,16 +433,21 @@ export default function PolicySection({
         {filteredPolicies.length > 0 ? (
           filteredPolicies.map((p, idx) => (
             <div
-              key={`policy-${p.org}-${p.id || idx}-${idx}`}
+              key={`policy-${p.id || idx}`}
               className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between group"
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    {p.org}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold border ${getScopeBadgeStyle(p.scope)}`}>
+                      {p.scopeLabel}
+                    </span>
+                    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 max-w-[150px] truncate">
+                      {p.org}
+                    </span>
+                  </div>
                   {p.categories.length > 0 && (
-                    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700">
+                    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 shrink-0">
                       {p.categories[0]}
                       {p.categories.length > 1 && ` 외 ${p.categories.length - 1}`}
                     </span>
@@ -339,10 +463,10 @@ export default function PolicySection({
                     <span className="font-semibold text-slate-800 shrink-0">대상:</span>
                     <span className="line-clamp-2 text-slate-600">{p.target}</span>
                   </div>
-                  {p.dept && (
+                  {p.description && (
                     <div className="flex items-start gap-2">
-                      <span className="font-semibold text-slate-800 shrink-0">부서:</span>
-                      <span className="text-slate-600">{p.dept}</span>
+                      <span className="font-semibold text-slate-800 shrink-0">내용:</span>
+                      <span className="line-clamp-2 text-slate-500">{p.description}</span>
                     </div>
                   )}
                 </div>
