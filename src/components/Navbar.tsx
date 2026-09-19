@@ -4,33 +4,97 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Bell, Layers, MessageSquarePlus, LogIn, LogOut, User } from 'lucide-react';
+import { Bell, Layers, MessageSquarePlus, LogIn, LogOut, User, Bookmark, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function Navbar() {
   const pathname = usePathname();
   const [user, setUser] = useState<any>(null);
+  const [savedCount, setSavedCount] = useState<number>(0);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-    });
+    const updateSavedCount = () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('suncheon_saved_policies');
+          if (raw) {
+            const list = JSON.parse(raw);
+            setSavedCount(Array.isArray(list) ? list.length : 0);
+          } else {
+            setSavedCount(0);
+          }
+        } catch {
+          setSavedCount(0);
+        }
+      }
+    };
+
+    updateSavedCount();
+
+    const checkUser = () => {
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user) {
+          setUser(data.user);
+        } else if (typeof window !== 'undefined') {
+          const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
+          if (authStr) {
+            try {
+              setUser(JSON.parse(authStr));
+            } catch {
+              setUser(null);
+            }
+          } else {
+            setUser(null);
+          }
+        }
+      });
+      updateSavedCount();
+    };
+
+    checkUser();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        checkUser();
+      }
+      updateSavedCount();
     });
+
+    const handleCustomAuth = () => checkUser();
+    const handleBookmarkChanged = () => updateSavedCount();
+
+    window.addEventListener('auth_state_changed', handleCustomAuth);
+    window.addEventListener('bookmark_changed', handleBookmarkChanged);
+    window.addEventListener('storage', handleBookmarkChanged);
 
     return () => {
       authListener.subscription.unsubscribe();
+      window.removeEventListener('auth_state_changed', handleCustomAuth);
+      window.removeEventListener('bookmark_changed', handleBookmarkChanged);
+      window.removeEventListener('storage', handleBookmarkChanged);
     };
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('suncheon_auth_session');
+      localStorage.removeItem('suncheon_guest_user');
+    }
     setUser(null);
   };
 
   const navLinks = [
+    {
+      href: '/custom-search',
+      label: 'AI 맞춤 검색',
+      icon: Sparkles,
+      isActive: pathname === '/custom-search',
+    },
     {
       href: '/notices',
       label: '순천시 공지보기',
@@ -91,7 +155,9 @@ export default function Navbar() {
                   <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span className="hidden md:inline">{item.label}</span>
                   <span className="inline md:hidden">
-                    {item.label === '순천시 공지보기'
+                    {item.label === 'AI 맞춤 검색'
+                      ? '맞춤검색'
+                      : item.label === '순천시 공지보기'
                       ? '공지'
                       : item.label === '순천시 지원보기'
                       ? '지원'
@@ -104,15 +170,36 @@ export default function Navbar() {
 
           <div className="h-5 w-px bg-slate-200 mx-1 hidden sm:block" />
 
+          {/* 내 보관함 버튼 (전용 보관함 페이지로 이동) */}
+          <Link
+            href="/bookmarks"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300/80 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold transition-all shadow-2xs cursor-pointer group"
+            title="내가 보관한 순천시 맞춤 혜택 목록"
+          >
+            <Bookmark className="w-3.5 h-3.5 fill-amber-500 text-amber-500 group-hover:scale-110 transition-transform" />
+            <span>내 보관함</span>
+            {savedCount > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px] font-extrabold shadow-2xs">
+                {savedCount}
+              </span>
+            )}
+          </Link>
+
           {/* Auth Button */}
           {user ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-600 font-medium hidden lg:inline max-w-[120px] truncate">
-                {user.email?.split('@')[0]}님
+              <span className="text-xs text-slate-700 font-semibold hidden lg:inline max-w-[140px] truncate px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                {user.is_guest
+                  ? '순천시민 (체험)'
+                  : user.user_metadata?.name
+                  ? `${user.user_metadata.name}님`
+                  : user.name
+                  ? `${user.name}님`
+                  : `${user.email?.split('@')[0]}님`}
               </span>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-xs font-semibold text-slate-600 transition-all"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-xs font-semibold text-slate-600 transition-all cursor-pointer"
                 title="로그아웃"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -122,7 +209,7 @@ export default function Navbar() {
           ) : (
             <Link
               href="/login"
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-emerald-700 text-white text-xs font-semibold transition-all shadow-2xs"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-emerald-700 text-white text-xs font-semibold transition-all shadow-2xs"
             >
               <LogIn className="w-3.5 h-3.5" />
               <span>로그인</span>

@@ -40,3 +40,44 @@ ALTER TABLE public.citizen_requests ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public read access for citizen_requests" ON public.citizen_requests FOR SELECT USING (true);
 CREATE POLICY "Allow public insert access for citizen_requests" ON public.citizen_requests FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public update access for citizen_requests" ON public.citizen_requests FOR UPDATE USING (true);
+
+-- 3. 순천시 공지사항 테이블 (notices)
+CREATE TABLE IF NOT EXISTS public.notices (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    link TEXT UNIQUE NOT NULL,
+    source TEXT NOT NULL,
+    source_url TEXT,
+    dept TEXT,
+    date TEXT,
+    views TEXT,
+    category TEXT DEFAULT 'notice', -- notice, welfare
+    reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- notices RLS 활성화 및 정책 설정
+ALTER TABLE public.notices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access for notices" ON public.notices FOR SELECT USING (true);
+CREATE POLICY "Allow public insert access for notices" ON public.notices FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update access for notices" ON public.notices FOR UPDATE USING (true);
+
+-- 4. 순천시민 혜택 보관함 테이블 (saved_policies)
+CREATE TABLE IF NOT EXISTS public.saved_policies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_email TEXT NOT NULL,
+    policy_id TEXT NOT NULL,
+    policy_title TEXT,
+    policy_org TEXT,
+    policy_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(user_email, policy_id)
+);
+
+-- saved_policies RLS 활성화 및 정책 설정
+ALTER TABLE public.saved_policies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access for saved_policies" ON public.saved_policies FOR SELECT USING (true);
+CREATE POLICY "Allow public insert access for saved_policies" ON public.saved_policies FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public delete access for saved_policies" ON public.saved_policies FOR DELETE USING (true);
+CREATE POLICY "Allow public update access for saved_policies" ON public.saved_policies FOR UPDATE USING (true);
+

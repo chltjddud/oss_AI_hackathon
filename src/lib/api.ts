@@ -118,6 +118,10 @@ export async function fetchPublicBenefits(page = 1, perPage = 50, orgFilter = '�
   }
 }
 
+let cachedBenefits: ApplicablePolicy[] | null = null;
+let lastBenefitsFetchTime = 0;
+const BENEFITS_CACHE_TTL_MS = 1000 * 60 * 15; // 15 minutes cache
+
 /**
  * 순천시민(청년, 일반 시민 포함)이 신청 가능한 모든 정책을 종합 수집하는 통합 함수
  * 1. 순천시 자체 혜택 (소관기관명: 순천)
@@ -126,10 +130,15 @@ export async function fetchPublicBenefits(page = 1, perPage = 50, orgFilter = '�
  * 4. 중앙부처 전국민 지원 혜택 (소관기관유형: 중앙행정기관)
  * 5. 온통청년 API 청년 정책
  */
-export async function fetchSuncheonApplicableBenefits(): Promise<ApplicablePolicy[]> {
+export async function fetchSuncheonApplicableBenefits(forceRefresh = false): Promise<ApplicablePolicy[]> {
+  const now = Date.now();
+  if (!forceRefresh && cachedBenefits && now - lastBenefitsFetchTime < BENEFITS_CACHE_TTL_MS) {
+    return cachedBenefits;
+  }
+
   const apiKey = process.env.PUBLIC_DATA_API_KEY;
   if (!apiKey) {
-    return [];
+    return cachedBenefits || [];
   }
 
   const fetchParam = async (param: string) => {
@@ -158,24 +167,71 @@ export async function fetchSuncheonApplicableBenefits(): Promise<ApplicablePolic
   ]);
 
   // 타 지자체 전용 정책 필터링 목록 (순천시민은 대상이 아닌 개별 시/군/구 전용 혜택 제외)
-  const nonSuncheonDistricts = [
-    '목포시', '여수시', '나주시', '광양시', '담양군', '곡성군', '구례군', '고흥군',
-    '보성군', '화순군', '장흥군', '강진군', '해남군', '영암군', '무안군', '함평군',
-    '영광군', '장성군', '완도군', '진도군', '신안군', '동구', '서구', '남구', '북구', '광산구'
-  ];
+  // 순천시민 및 전라남도 전체 대상(순천 포함) 정책만 엄격히 필터링
+  const isEligibleForSuncheon = (org: string, target?: string, desc?: string, title?: string): boolean => {
+    const fullText = `${org} ${target || ''} ${desc || ''} ${title || ''}`;
+
+    // 1. 순천 관련(순천시청, 순천의료원, 순천시 등)은 무조건 포함
+    if (org.includes('순천') || fullText.includes('순천시') || fullText.includes('순천시민')) {
+      return true;
+    }
+
+    // 2. 타 시/군/구 (여수, 목포, 북구, 서구, 남구, 동구, 광산구, 나주, 광양 등)가 org 또는 title에 명시된 경우 100% 제거!
+    const otherDistricts = [
+      '여수', '목포', '북구', '서구', '남구', '동구', '광산구', '광산',
+      '나주', '광양', '담양', '곡성', '구례', '고흥', '보성', '화순',
+      '장흥', '강진', '해남', '영암', '무안', '함평', '영광', '장성',
+      '완도', '진도', '신안'
+    ];
+
+    const hasOtherDistrict = otherDistricts.some(dist => 
+      org.includes(dist) || title?.includes(`${dist}시`) || title?.includes(`${dist}군`) || title?.includes(`${dist}구`)
+    );
+    if (hasOtherDistrict) {
+      return false;
+    }
+
+    // 3. 타 광역시/도 제외 (서울, 경기, 부산, 대구, 인천, 대전, 울산, 세종, 강원, 충청, 전북, 경상, 제주 등)
+    const otherProvinces = [
+      '서울', '부산', '대구', '인천', '대전', '울산', '세종',
+      '경기', '경기도', '강원', '강원도', '충북', '충남', '충청',
+      '전북', '전라북도', '경북', '경상북도', '경남', '경상남도', '제주'
+    ];
+    if (otherProvinces.some(prov => org.includes(prov))) {
+      return false;
+    }
+
+    // 타 지자체 주민 한정 조건 제외
+    if (otherDistricts.some(dist => target?.includes(`${dist} 거주`) || target?.includes(`${dist}시민`) || target?.includes(`${dist}구민`))) {
+      return false;
+    }
+    if (otherProvinces.some(prov => target?.includes(`${prov} 거주`) || target?.includes(`${prov}시민`) || target?.includes(`${prov}도민`))) {
+      return false;
+    }
+
+    // 4. 전라남도 광역 정책: 특정 시군이 붙지 않은 순수 전라남도/전남도청 광역 사업만 포함
+    if (org.includes('전남광주통합특별시') || org.includes('전라남도') || org.includes('전남도청')) {
+      return true;
+    }
+
+    // 5. 중앙부처 / 전국 단위 공공 정책 (전국민 누구나, 순천시민 포함)
+    return true;
+  };
 
   const policyMap = new Map<string, ApplicablePolicy>();
 
   const processItem = (item: any, defaultScope: 'suncheon' | 'jeonnam' | 'national' | 'youth') => {
     const org = (item.소관기관명 as string) || '';
     const title = (item.서비스명 || item.svcNm || '') as string;
+    const target = (item.지원대상 as string) || (item.지원유형 as string) || '';
+    const desc = (item.서비스목적요약 as string) || (item.지원내용 as string) || '';
+
     if (!title) return;
 
-    // 타 지자체 전용 필터링 (순천 포함 시 제외하지 않음)
-    const isOtherDistrict = nonSuncheonDistricts.some(
-      dist => org.includes(dist) && !org.includes('순천')
-    );
-    if (isOtherDistrict) return;
+    // 순천시민 및 전라도 전체 대상인지 엄격 필터링
+    if (!isEligibleForSuncheon(org, target, desc, title)) {
+      return;
+    }
 
     const id = (item.서비스ID as string) || title;
     if (policyMap.has(id)) return;
@@ -194,9 +250,13 @@ export async function fetchSuncheonApplicableBenefits(): Promise<ApplicablePolic
       scopeLabel = '전남광역';
     }
 
-    const cleanOrg = org.includes('순천')
-      ? '순천시'
-      : (org || '대한민국 정부');
+    // 긴 소관기관명을 읽기 쉽게 정제하여 글자 잘림 방지
+    let cleanOrg = org || '대한민국 정부';
+    if (org.includes('순천')) {
+      cleanOrg = '순천시';
+    } else if (org.includes('전남광주통합특별시') || org.includes('전라남도') || org.includes('전남')) {
+      cleanOrg = '전라남도';
+    }
 
     policyMap.set(id, {
       id: `gov24-${id}`,
@@ -204,8 +264,8 @@ export async function fetchSuncheonApplicableBenefits(): Promise<ApplicablePolic
       category: (item.서비스분야 as string) || (scope === 'youth' ? '청년지원' : '공공복지'),
       org: cleanOrg,
       dept: (item.부서명 as string) || (item.소관기관명 as string) || cleanOrg,
-      target: (item.지원대상 as string) || (item.지원유형 as string) || '요건 충족 순천시민/국민',
-      description: (item.서비스목적요약 as string) || (item.지원내용 as string) || '',
+      target: target || '요건 충족 순천시민/국민',
+      description: desc,
       url: (item.상세조회URL as string) || '#',
       deadline: (item.신청기한 as string) || null,
       scope,
@@ -220,12 +280,17 @@ export async function fetchSuncheonApplicableBenefits(): Promise<ApplicablePolic
   jeonnamItems.forEach((item: any) => processItem(item, 'jeonnam'));
   centralItems.forEach((item: any) => processItem(item, 'national'));
 
-  // 온통청년 결과 합산
+  // 온통청년 결과 합산 (순천 청년 신청 가능 여부 확인)
   youthCenterItems.forEach(item => {
-    if (!policyMap.has(item.id)) {
-      policyMap.set(item.id, item);
+    if (isEligibleForSuncheon(item.org, item.target, item.description, item.title)) {
+      if (!policyMap.has(item.id)) {
+        policyMap.set(item.id, item);
+      }
     }
   });
 
-  return Array.from(policyMap.values());
+  const result = Array.from(policyMap.values());
+  cachedBenefits = result;
+  lastBenefitsFetchTime = now;
+  return result;
 }

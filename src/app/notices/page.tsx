@@ -1,5 +1,5 @@
 import React from 'react';
-import { getCrawledData } from '@/lib/crawler';
+import { getMergedNotices } from '@/lib/crawler';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import NoticeSection from '@/components/NoticeSection';
@@ -7,8 +7,8 @@ import NoticeSection from '@/components/NoticeSection';
 export const revalidate = 600; // 10 minutes
 
 export default async function NoticesPage() {
-  const crawledData = await getCrawledData(false);
-  const formattedTime = new Date(crawledData.timestamp).toLocaleTimeString('ko-KR', {
+  const notices = await getMergedNotices(false);
+  const formattedTime = new Date().toLocaleTimeString('ko-KR', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -19,7 +19,7 @@ export default async function NoticesPage() {
       <Navbar />
       <main className="flex-1 container mx-auto px-4 sm:px-6 py-8">
         <NoticeSection
-          initialNotices={crawledData.notice}
+          initialNotices={notices}
           lastUpdated={formattedTime}
         />
       </main>

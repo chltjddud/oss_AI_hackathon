@@ -4,18 +4,38 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { LogIn, UserPlus, Mail, Lock, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, ArrowLeft, CheckCircle2, AlertCircle, User } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  const handleGuestLogin = () => {
+    const guestUser = {
+      id: 'guest-' + Date.now(),
+      email: 'guest@suncheon.kr',
+      name: '순천시민 (체험)',
+      user_metadata: { name: '순천시민 (체험)' },
+      is_guest: true
+    };
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('suncheon_auth_session', JSON.stringify(guestUser));
+      window.dispatchEvent(new Event('auth_state_changed'));
+    }
+    setSuccessMsg('체험용 계정으로 로그인되었습니다. 메인으로 이동합니다.');
+    setTimeout(() => {
+      router.push('/');
+      router.refresh();
+    }, 600);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,28 +45,102 @@ export default function LoginPage() {
 
     try {
       if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        router.push('/');
-        router.refresh();
-      } else {
-        const { error, data } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (error) throw error;
-        if (data?.user && !data.session) {
-          setSuccessMsg('회원가입 인증 이메일이 발송되었습니다. 메일함을 확인해 주세요.');
-        } else {
-          setSuccessMsg('회원가입이 완료되었습니다. 로그인되었습니다.');
-          setTimeout(() => {
-            router.push('/');
-            router.refresh();
-          }, 1200);
+        let loginSuccess = false;
+
+        // 1. Supabase 로그인 시도
+        try {
+          const { error, data } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (!error && data?.session) {
+            loginSuccess = true;
+            if (typeof window !== 'undefined') {
+              const userObj = {
+                ...data.user,
+                name: data.user.user_metadata?.name || email.split('@')[0]
+              };
+              localStorage.setItem('suncheon_auth_session', JSON.stringify(userObj));
+              window.dispatchEvent(new Event('auth_state_changed'));
+            }
+          }
+        } catch {
+          // Supabase 에러 발생 시 로컬 계정 확인으로 fallback
         }
+
+        // 2. 로컬 등록 계정 확인 fallback
+        if (!loginSuccess && typeof window !== 'undefined') {
+          const registered = JSON.parse(localStorage.getItem('suncheon_registered_accounts') || '[]');
+          const matched = registered.find((acc: any) => acc.email === email && acc.password === password);
+          if (matched) {
+            loginSuccess = true;
+            const sessionUser = {
+              id: matched.id,
+              email: matched.email,
+              name: matched.name || matched.email.split('@')[0],
+              user_metadata: { name: matched.name || matched.email.split('@')[0] },
+              is_member: true
+            };
+            localStorage.setItem('suncheon_auth_session', JSON.stringify(sessionUser));
+            window.dispatchEvent(new Event('auth_state_changed'));
+          }
+        }
+
+        if (!loginSuccess) {
+          throw new Error('이메일 또는 비밀번호가 일치하지 않습니다. 회원가입 후 이용해 주세요.');
+        }
+
+        setSuccessMsg('로그인되었습니다. 메인으로 이동합니다.');
+        setTimeout(() => {
+          router.push('/');
+          router.refresh();
+        }, 600);
+      } else {
+        // 회원가입 모드: 이름 입력 검증 및 즉시 등록
+        const cleanName = name.trim();
+        if (!cleanName) {
+          throw new Error('회원가입을 위해 이름을 입력해 주세요.');
+        }
+
+        const newUserId = 'user-' + Date.now();
+        const newUser = {
+          id: newUserId,
+          name: cleanName,
+          email,
+          user_metadata: { name: cleanName },
+          is_member: true
+        };
+
+        // 로컬 등록 계정에 즉시 추가
+        if (typeof window !== 'undefined') {
+          const registered = JSON.parse(localStorage.getItem('suncheon_registered_accounts') || '[]');
+          if (registered.some((acc: any) => acc.email === email)) {
+            throw new Error('이미 등록된 이메일 주소입니다. 로그인 탭에서 로그인해 주세요.');
+          }
+          registered.push({
+            id: newUserId,
+            name: cleanName,
+            email,
+            password,
+            createdAt: new Date().toISOString()
+          });
+          localStorage.setItem('suncheon_registered_accounts', JSON.stringify(registered));
+          localStorage.setItem('suncheon_auth_session', JSON.stringify(newUser));
+          window.dispatchEvent(new Event('auth_state_changed'));
+        }
+
+        // 백그라운드 Supabase signUp 시도 (options에 이름 포함)
+        supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { name: cleanName } }
+        }).catch(() => {});
+
+        setSuccessMsg(`${cleanName}님, 회원가입이 완료되었습니다! 즉시 로그인되었습니다.`);
+        setTimeout(() => {
+          router.push('/');
+          router.refresh();
+        }, 800);
       }
     } catch (err: any) {
       setErrorMsg(err.message || '인증 처리 중 오류가 발생했습니다.');
@@ -115,6 +209,23 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'signup' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">이름 (성함 또는 닉네임)</label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="홍길동 (또는 순천시민)"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">이메일 주소</label>
               <div className="relative">
@@ -149,7 +260,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 mt-6"
+              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 mt-6 cursor-pointer"
             >
               {mode === 'login' ? (
                 <>
@@ -164,6 +275,36 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-3 text-slate-400 font-medium">또는 바로 체험하기</span>
+            </div>
+          </div>
+
+          {/* Guest / Demo Login Button */}
+          <button
+            type="button"
+            onClick={handleGuestLogin}
+            className="w-full py-3 px-4 rounded-xl border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/60 hover:bg-emerald-50 text-emerald-800 font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer group shadow-2xs"
+          >
+            <span className="px-1.5 py-0.5 rounded bg-emerald-200/70 text-[11px] font-bold text-emerald-800">1초 로그인</span>
+            <span>순천시민 체험 계정으로 시작하기 (게스트)</span>
+          </button>
+
+          {/* Registration Info Tip */}
+          <div className="mt-6 p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-[11px] sm:text-xs text-emerald-900 leading-relaxed">
+            <p className="font-bold flex items-center gap-1.5 text-emerald-950 mb-1">
+              💡 간편 회원가입 안내
+            </p>
+            <p className="text-slate-600">
+              별도의 확인 이메일 수신 대기 없이, 가입 버튼을 누르면 <strong>즉시 회원 등록 및 로그인</strong>되어 순천 혜택 보관함과 모든 맞춤 서비스를 바로 이용하실 수 있습니다.
+            </p>
+          </div>
         </div>
       </main>
 

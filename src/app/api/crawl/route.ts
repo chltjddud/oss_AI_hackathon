@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCrawledData } from '@/lib/crawler';
+import { getMergedAll } from '@/lib/crawler';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,10 +9,11 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('query')?.toLowerCase();
     const refresh = searchParams.get('refresh') === 'true';
 
-    const data = await getCrawledData(refresh);
+    // DB-First 초고속 통합 데이터 조회 (refresh인 경우에만 백그라운드/크롤링 수행)
+    const { notices, welfare, timestamp } = await getMergedAll(refresh);
 
-    let filteredWelfare = data.welfare;
-    let filteredNotice = data.notice;
+    let filteredWelfare = welfare;
+    let filteredNotice = notices;
 
     if (source) {
       filteredWelfare = filteredWelfare.filter(i => i.source === source);
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
     if (category === 'welfare') {
       return NextResponse.json({
         success: true,
-        timestamp: data.timestamp,
+        timestamp: timestamp,
         count: filteredWelfare.length,
         items: filteredWelfare
       });
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     if (category === 'notice') {
       return NextResponse.json({
         success: true,
-        timestamp: data.timestamp,
+        timestamp: timestamp,
         count: filteredNotice.length,
         items: filteredNotice
       });
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      timestamp: data.timestamp,
+      timestamp: timestamp,
       total: filteredWelfare.length + filteredNotice.length,
       welfareCount: filteredWelfare.length,
       noticeCount: filteredNotice.length,

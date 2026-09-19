@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# deployment & scratch artifacts
+deploy.tar.gz
+dist-*/
+prepare-deploy.mjs
+test-*.mjs
