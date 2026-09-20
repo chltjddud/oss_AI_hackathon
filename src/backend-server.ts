@@ -4,6 +4,7 @@ import { getCrawledData, crawlAllHistoricalData, syncNoticesToSupabase, getMerge
 import { summarizeItemWithGemini, SummarizeInput } from './lib/summarizer';
 import { supabase } from './lib/supabase-server';
 import { fetchSuncheonApplicableBenefits } from './lib/api';
+import { matchSituation } from './lib/matcher';
 
 const PORT = process.env.PORT || 3102;
 
@@ -198,6 +199,30 @@ const server = http.createServer(async (req, res) => {
         success: true,
         summary
       });
+    }
+
+    // Match API (Gemini 상황별 맞춤 추천)
+    if (pathname === '/match' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const situation = typeof body.situation === 'string' ? body.situation.trim() : '';
+
+      if (!situation) {
+        return sendJson(res, 400, { success: false, error: '상황이나 검색어를 입력해주세요.' });
+      }
+
+      try {
+        const result = await matchSituation(situation);
+        return sendJson(res, 200, {
+          success: true,
+          ...result
+        });
+      } catch (matchErr: any) {
+        console.error('Error in /match endpoint:', matchErr);
+        return sendJson(res, 500, {
+          success: false,
+          error: matchErr?.message || '맞춤 추천 처리 중 오류가 발생했습니다.'
+        });
+      }
     }
 
     // Policies Sync API
