@@ -315,7 +315,7 @@ export default function CrawledSection({
                 <Sparkles className="w-4 h-4" />
               </div>
               <h3 className="font-bold text-[#1F2937]">
-                <span className="text-[#10B981]">순천시</span>, 이런 지원이 필요해요
+                <span className="text-[#10B981]">순천시</span>, 이런 복지가 필요해요
               </h3>
               <span className="text-xs text-[#4B5563] hidden sm:inline ml-2">해당하는 상황을 고르면 받을 수 있는 혜택만 모아 보여드려요.</span>
             </div>

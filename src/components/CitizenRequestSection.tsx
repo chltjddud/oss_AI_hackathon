@@ -272,10 +272,10 @@ export default function CitizenRequestSection() {
           순천시민 정책 제안 창구
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
-          순천에 <span className="text-emerald-600">이런 지원 필요해요</span>
+          순천에 <span className="text-emerald-600">이런 복지 필요해요</span>
         </h1>
         <p className="text-sm sm:text-base text-slate-500 max-w-xl mx-auto px-4 mb-6">
-          시민의 일상에서 꼭 필요한 맞춤 지원과 복지 정책을 직접 제안해주세요. 시민 공감도가 높은 제안은 순천시정에 적극 검토됩니다.
+          시민의 일상에서 꼭 필요한 맞춤 복지 정책을 직접 제안해주세요. 시민 공감도가 높은 제안은 순천시정에 적극 검토됩니다.
         </p>
 
         <button
@@ -283,7 +283,7 @@ export default function CitizenRequestSection() {
           className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all shadow-xs"
         >
           <Plus className="w-4 h-4" />
-          지원 요청 제안하기
+          복지 정책 제안하기
         </button>
       </div>
 
@@ -399,7 +399,7 @@ export default function CitizenRequestSection() {
             </button>
 
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-slate-900">순천시에 지원 요청하기</h2>
+              <h2 className="text-xl font-bold text-slate-900">순천시에 복지 제안하기</h2>
               <p className="text-xs text-slate-500 mt-1">
                 순천시와 함께 만들어갈 실질적인 복지 및 혜택 아이디어를 자유롭게 제안해 주세요.
               </p>

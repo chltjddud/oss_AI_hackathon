@@ -13,7 +13,8 @@ import {
   Layers,
   ArrowRight,
   CheckCircle2,
-  HelpCircle
+  HelpCircle,
+  Bot
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AiSummaryModal from '@/components/AiSummaryModal';
@@ -227,6 +228,20 @@ export default function BookmarkSection({
     }
   };
 
+  const handleOpenChat = (p: UnifiedPolicy) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('open_ai_chat', {
+          detail: {
+            initialQuery: `${p.title} 혜택에 대해 1:1 상담받고 싶어요. 지원 요건과 필요 구비서류, 신청 방법을 자세히 알려주세요.`,
+            autoSend: true,
+            policy: p
+          }
+        })
+      );
+    }
+  };
+
   // Filtered saved policies
   const savedPoliciesList = useMemo(() => {
     return savedPolicyIds
@@ -387,9 +402,19 @@ export default function BookmarkSection({
                     <button
                       onClick={() => handleOpenSummary(policy)}
                       className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-emerald-800 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-200 transition-all cursor-pointer"
+                      title="핵심 3줄 요약 및 구비서류 확인"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>AI 3줄 요약</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleOpenChat(policy)}
+                      className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-indigo-800 hover:text-white bg-indigo-50 hover:bg-indigo-600 border border-indigo-200 transition-all cursor-pointer"
+                      title="이 혜택으로 1:1 AI 맞춤 상담 시작"
+                    >
+                      <Bot className="w-3.5 h-3.5" />
+                      <span>AI 상담</span>
                     </button>
                   </div>
 
@@ -420,7 +445,7 @@ export default function BookmarkSection({
             보관함에 담긴 혜택이 아직 없습니다
           </h3>
           <p className="text-sm text-slate-500 max-w-md mx-auto mb-8 leading-relaxed">
-            순천시 지원 정책 목록이나 AI 맞춤 검색에서 관심 있는 혜택의 '보관하기' 버튼을 눌러 모아보세요.
+            순천시 복지 정책 목록이나 AI 맞춤 검색에서 관심 있는 혜택의 '보관하기' 버튼을 눌러 모아보세요.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -429,7 +454,7 @@ export default function BookmarkSection({
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-xs transition-all"
             >
               <Layers className="w-4 h-4" />
-              <span>순천시 지원보기 둘러보기</span>
+              <span>순천시 복지보기 둘러보기</span>
             </Link>
 
             <Link

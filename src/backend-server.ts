@@ -5,6 +5,7 @@ import { summarizeItemWithGemini, SummarizeInput } from './lib/summarizer';
 import { supabase } from './lib/supabase-server';
 import { fetchSuncheonApplicableBenefits } from './lib/api';
 import { matchSituation } from './lib/matcher';
+import { processChatCounseling } from './lib/chatbot';
 
 const PORT = process.env.PORT || 3102;
 
@@ -221,6 +222,39 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 500, {
           success: false,
           error: matchErr?.message || '맞춤 추천 처리 중 오류가 발생했습니다.'
+        });
+      }
+    }
+
+    // 1:1 AI Chat Counseling API
+    if (pathname === '/chat' && req.method === 'POST') {
+      const body = await parseBody(req);
+      let messages: any[] = [];
+      if (Array.isArray(body.messages)) {
+        messages = body.messages;
+      } else if (typeof body.message === 'string' && body.message.trim()) {
+        messages = [{
+          id: `msg-${Date.now()}`,
+          role: 'user',
+          content: body.message.trim()
+        }];
+      }
+
+      if (messages.length === 0) {
+        return sendJson(res, 400, { success: false, error: '상담 메시지를 입력해주세요.' });
+      }
+
+      try {
+        const chatRes = await processChatCounseling(messages);
+        return sendJson(res, 200, {
+          success: true,
+          ...chatRes
+        });
+      } catch (chatErr: any) {
+        console.error('Error in /chat endpoint:', chatErr);
+        return sendJson(res, 500, {
+          success: false,
+          error: chatErr?.message || '상담 처리 중 오류가 발생했습니다.'
         });
       }
     }

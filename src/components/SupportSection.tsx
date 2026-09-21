@@ -237,7 +237,7 @@ export default function SupportSection({
           상황별 맞춤 지원 포털
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-3 text-slate-900">
-          순천에 <span className="text-emerald-600">이런 지원 필요해요</span>
+          순천에 <span className="text-emerald-600">이런 복지 필요해요</span>
         </h1>
         <p className="text-sm sm:text-base text-slate-500 max-w-xl mx-auto px-4">
           연령대와 가구 상황을 선택하시면 순천시와 중앙정부에서 제공하는 맞춤 지원 혜택을 즉시 찾아드립니다.

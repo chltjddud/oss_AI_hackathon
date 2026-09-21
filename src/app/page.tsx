@@ -68,7 +68,7 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* 2. 기존 공지보기 및 지원보기 2열 그리드 */}
+          {/* 2. 기존 공지보기 및 복지보기 2열 그리드 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-xl mx-auto">
             <Link
               href="/notices"
@@ -101,13 +101,13 @@ export default function Home() {
                 <Layers className="w-6 h-6" />
               </div>
               <h2 className="text-lg sm:text-xl font-bold text-slate-900 group-hover:text-emerald-700 transition-colors mb-1.5">
-                순천시 지원보기
+                순천시 복지보기
               </h2>
               <p className="text-xs text-slate-500 mb-5">
-                주거, 일자리, 문화, 보육 등 순천시와 정부의 맞춤 지원 정책을 확인합니다.
+                주거, 일자리, 문화, 보육 등 순천시와 정부의 맞춤 복지 정책을 확인합니다.
               </p>
               <div className="inline-flex items-center gap-1 text-xs sm:text-sm font-bold text-emerald-700 group-hover:translate-x-1 transition-transform">
-                <span>지원 정책 바로가기</span>
+                <span>복지 정책 바로가기</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </div>
             </Link>

@@ -4,8 +4,9 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Bell, Layers, MessageSquarePlus, LogIn, LogOut, User, Bookmark, Sparkles } from 'lucide-react';
+import { Bell, Layers, MessageSquarePlus, LogIn, LogOut, User, Bookmark, Sparkles, Bot } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import NotificationCenter from '@/components/NotificationCenter';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -91,25 +92,31 @@ export default function Navbar() {
   const navLinks = [
     {
       href: '/custom-search',
-      label: 'AI 맞춤 검색',
+      label: 'AI 검색',
       icon: Sparkles,
       isActive: pathname === '/custom-search',
     },
     {
+      href: '/chat',
+      label: 'AI 상담',
+      icon: Bot,
+      isActive: pathname === '/chat',
+    },
+    {
       href: '/notices',
-      label: '순천시 공지보기',
+      label: '공지보기',
       icon: Bell,
       isActive: pathname === '/notices',
     },
     {
       href: '/policies',
-      label: '순천시 지원보기',
+      label: '복지보기',
       icon: Layers,
       isActive: pathname === '/policies',
     },
     {
       href: '/support',
-      label: '이런 지원 필요해요',
+      label: '복지 요청',
       icon: MessageSquarePlus,
       isActive: pathname === '/support',
     },
@@ -117,52 +124,43 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200/80 bg-white/95 backdrop-blur shadow-2xs">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-3 group">
+      <div className="container mx-auto flex h-16 items-center justify-between px-3 sm:px-6">
+        <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
           <Image
             src="/suncheon-logo.svg"
             alt="순천시 로고"
             width={75}
             height={32}
-            className="h-8 w-auto"
+            className="h-7 sm:h-8 w-auto"
             priority
           />
           <div className="flex flex-col">
-            <span className="font-bold text-base sm:text-lg text-emerald-800 tracking-tight group-hover:text-emerald-600 transition-colors">
+            <span className="font-bold text-sm sm:text-lg text-emerald-800 tracking-tight group-hover:text-emerald-600 transition-colors whitespace-nowrap">
               순천시 혜택 모음
             </span>
-            <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium hidden sm:inline">
+            <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium hidden xl:inline whitespace-nowrap">
               순천시 공지 · 맞춤 지원 · 시민 제안 포털
             </span>
           </div>
         </Link>
 
         {/* Navigation & Auth */}
-        <div className="flex items-center gap-1.5 sm:gap-3">
-          <nav className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
+          <nav className="flex items-center gap-0.5 sm:gap-1 lg:gap-1.5">
             {navLinks.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+                  className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 sm:px-2.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap shrink-0 ${
                     item.isActive
                       ? 'bg-emerald-600 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                  <span className="hidden md:inline">{item.label}</span>
-                  <span className="inline md:hidden">
-                    {item.label === 'AI 맞춤 검색'
-                      ? '맞춤검색'
-                      : item.label === '순천시 공지보기'
-                      ? '공지'
-                      : item.label === '순천시 지원보기'
-                      ? '지원'
-                      : '시민제안'}
-                  </span>
+                  <span>{item.label}</span>
                 </Link>
               );
             })}
@@ -184,6 +182,9 @@ export default function Navbar() {
               </span>
             )}
           </Link>
+
+          {/* 알림 센터 (D-Day 마감 임박 & 키워드 공고) */}
+          <NotificationCenter />
 
           {/* Auth Button */}
           {user ? (

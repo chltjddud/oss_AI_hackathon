@@ -22,10 +22,15 @@ export const metadata: Metadata = {
   },
 };
 
+import AiChatWidget from '@/components/AiChatWidget';
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body>{children}</body>
+    <html lang="ko" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body>
+        {children}
+        <AiChatWidget />
+      </body>
     </html>
   );
 }

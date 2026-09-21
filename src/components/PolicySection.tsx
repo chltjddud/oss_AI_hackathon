@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, ExternalLink, Layers, Tag, Calendar, X, Compass, Sparkles, ChevronLeft, ChevronRight, Bookmark } from 'lucide-react';
+import { Search, ExternalLink, Layers, Tag, Calendar, X, Compass, Sparkles, ChevronLeft, ChevronRight, Bookmark, Bot } from 'lucide-react';
 import { CrawledItem } from '@/lib/crawler';
 import { ApplicablePolicy } from '@/lib/api';
 import { Gov24Item } from './SupportSection';
@@ -223,6 +223,20 @@ export default function PolicySection({
       console.error('Failed to summarize policy:', err);
     } finally {
       setLoadingSummaries(prev => ({ ...prev, [itemKey]: false }));
+    }
+  };
+
+  const handleOpenChat = (p: UnifiedPolicy) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('open_ai_chat', {
+          detail: {
+            initialQuery: `${p.title} 혜택에 대해 1:1 상담받고 싶어요. 지원 요건과 필요 구비서류, 신청 방법을 자세히 알려주세요.`,
+            autoSend: true,
+            policy: p
+          }
+        })
+      );
     }
   };
 
@@ -458,10 +472,10 @@ export default function PolicySection({
           순천시민 신청 가능 공공 혜택 종합 포털
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-3 text-slate-900">
-          순천시 <span className="text-emerald-600">지원보기</span>
+          순천시 <span className="text-emerald-600">복지보기</span>
         </h1>
         <p className="text-sm sm:text-base text-slate-500 max-w-2xl mx-auto px-4 leading-relaxed">
-          순천시청 자체 사업부터 청년 맞춤 정책, 전남광역 지원 및 중앙부처 전국민 혜택까지 순천시민이 누릴 수 있는 모든 지원을 한곳에서 확인하세요.
+          순천시청 자체 사업부터 청년 맞춤 정책, 전남광역 지원 및 중앙부처 전국민 혜택까지 순천시민이 누릴 수 있는 모든 복지 혜택을 한곳에서 확인하세요.
         </p>
       </div>
 
@@ -474,7 +488,6 @@ export default function PolicySection({
             { id: 'youth', label: '순천 청년 맞춤 혜택', count: scopeCounts.youth },
             { id: 'jeonnam', label: '전남광역 혜택', count: scopeCounts.jeonnam },
             { id: 'national', label: '전국·중앙부처 혜택', count: scopeCounts.national },
-            { id: 'saved', label: '⭐ 내 보관함', count: scopeCounts.saved },
           ].map(tab => (
             <button
               key={tab.id}
@@ -683,7 +696,7 @@ export default function PolicySection({
                       <span className="line-clamp-2 text-slate-500">{p.description}</span>
                     </div>
                   )}
-                  {/* 신청기한을 카드 본문 정보로 독립 배치하여 하단 버튼들과의 겹침/깨짐 원천 차단 */}
+                  {/* 신청기한 */}
                   <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-200/60 text-slate-500">
                     <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span className="font-semibold text-slate-700 shrink-0">신청기한:</span>
@@ -694,20 +707,30 @@ export default function PolicySection({
                 </div>
               </div>
 
-              {/* 하단 액션 바: [AI 요약] + [보관함 담기] (좌측) / [상세보기 ↗] (우측) */}
+              {/* 하단 액션 바: [AI 요약] + [AI 상담] + [보관함] (좌측) / [상세보기 ↗] (우측) */}
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs mt-auto">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     onClick={() => handleOpenSummary(p)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 cursor-pointer"
+                    title="핵심 3줄 요약 및 필수 구비서류 확인"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>AI 요약</span>
                   </button>
 
                   <button
+                    onClick={() => handleOpenChat(p)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 cursor-pointer"
+                    title="이 복지 혜택으로 1:1 AI 맞춤 상담 시작"
+                  >
+                    <Bot className="w-3.5 h-3.5" />
+                    <span>AI 상담</span>
+                  </button>
+
+                  <button
                     onClick={() => toggleSavePolicy(p)}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
+                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
                       isSaved(p.id)
                         ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600 shadow-xs'
                         : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300'

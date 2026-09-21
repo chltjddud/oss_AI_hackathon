@@ -4,8 +4,8 @@ import Footer from '@/components/Footer';
 import CitizenRequestSection from '@/components/CitizenRequestSection';
 
 export const metadata = {
-  title: '순천에 이런 지원 필요해요 | 순천시민 정책 제안',
-  description: '순천시민이 직접 제안하는 맞춤형 지원 및 복지 정책 창구',
+  title: '순천에 이런 복지 필요해요 | 순천시민 정책 제안',
+  description: '순천시민이 직접 제안하는 맞춤형 복지 정책 창구',
 };
 
 export default function SupportPage() {

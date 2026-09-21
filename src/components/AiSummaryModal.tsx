@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { Sparkles, CheckCircle2, Users, Info, ExternalLink, X, Loader2, Calendar } from 'lucide-react';
+import { Sparkles, CheckCircle2, Users, Info, ExternalLink, X, Loader2, Calendar, FileText, Bot } from 'lucide-react';
 import { AiSummaryResult } from '@/lib/summarizer';
+import { resolveGovDocument } from '@/lib/gov24Documents';
 
 interface AiSummaryModalProps {
   isOpen: boolean;
@@ -76,7 +77,7 @@ export default function AiSummaryModal({
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
               aria-label="닫기"
             >
               <X className="w-5 h-5" />
@@ -94,7 +95,7 @@ export default function AiSummaryModal({
             <div className="py-8 space-y-4">
               <div className="flex items-center justify-center gap-2.5 text-emerald-700 font-bold text-sm">
                 <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
-                <span>AI가 핵심 내용을 요약 분석하고 있습니다...</span>
+                <span>AI가 핵심 내용과 구비서류를 분석하고 있습니다...</span>
               </div>
               <div className="space-y-2.5 max-w-md mx-auto pt-2">
                 <div className="h-4 bg-emerald-50 rounded-md w-full animate-pulse"></div>
@@ -126,6 +127,68 @@ export default function AiSummaryModal({
                   ))}
                 </div>
               </div>
+
+              {/* Required Documents Section with Government 24 (정부24) Issuance Links */}
+              {summary.requiredDocuments && summary.requiredDocuments.length > 0 && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/80 border border-amber-200">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2 text-amber-950 font-bold text-xs sm:text-sm">
+                      <FileText className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>신청 필수 구비서류 ({summary.requiredDocuments.length}건)</span>
+                    </div>
+                    <a
+                      href="https://www.gov.kr"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-amber-800 hover:text-amber-950 font-bold underline shrink-0"
+                    >
+                      <span>정부24 바로가기</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {summary.requiredDocuments.map((doc, idx) => {
+                      const govDoc = resolveGovDocument(doc);
+                      return (
+                        <div
+                          key={idx}
+                          className="flex flex-col justify-between p-3 rounded-xl bg-white/95 border border-amber-200/80 text-xs text-amber-950 shadow-2xs hover:border-amber-400 hover:shadow-xs transition-all"
+                        >
+                          <div className="flex items-start gap-2 mb-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <span className="font-semibold text-slate-800 leading-snug block">
+                                {doc}
+                              </span>
+                              {govDoc.badge && (
+                                <span className="inline-block mt-0.5 text-[10px] font-bold text-amber-800 bg-amber-100/80 px-1.5 py-0.2 rounded">
+                                  {govDoc.badge}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <a
+                            href={govDoc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center gap-1 w-full py-1.5 px-2.5 rounded-lg bg-amber-100/80 hover:bg-amber-600 hover:text-white text-amber-900 font-bold text-[11px] transition-colors mt-auto group cursor-pointer"
+                            title={`${doc} - ${govDoc.source} 온라인 발급 및 신청 페이지로 이동`}
+                          >
+                            <span>{govDoc.source} {govDoc.source === '정부24' ? '신청·발급' : '바로가기'}</span>
+                            <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                          </a>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <p className="text-[11px] text-amber-800/90 mt-3 pt-2 border-t border-amber-200/70 font-medium">
+                    정부24 및 공공포털을 통해 주민등록등본, 소득금액증명원 등을 수수료 없이 즉시 온라인 발급 및 전자문서지갑으로 제출하실 수 있습니다.
+                  </p>
+                </div>
+              )}
 
               {/* Target, Deadline & Tip Grid */}
               <div className="grid grid-cols-1 gap-3 pt-2">
@@ -180,7 +243,7 @@ export default function AiSummaryModal({
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
             >
               <span>공고 원문 바로가기</span>
               <ExternalLink className="w-3.5 h-3.5" />
@@ -189,12 +252,33 @@ export default function AiSummaryModal({
             <div></div>
           )}
 
-          <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors"
-          >
-            닫기
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                onClose();
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(
+                    new CustomEvent('open_ai_chat', {
+                      detail: {
+                        initialQuery: `${title} 혜택에 대해 1:1 상담받고 싶어요. 지원 요건과 필요 구비서류, 신청 방법을 자세히 알려주세요.`,
+                        autoSend: true
+                      }
+                    })
+                  );
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              <span>1:1 AI 상담하기</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+            >
+              닫기
+            </button>
+          </div>
         </div>
       </div>
     </div>

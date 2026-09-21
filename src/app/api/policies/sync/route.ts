@@ -76,3 +76,25 @@ export async function POST() {
     }, { status: 500 });
   }
 }
+
+export async function GET() {
+  try {
+    const [crawled, applicable] = await Promise.all([
+      getCrawledData(false),
+      fetchSuncheonApplicableBenefits()
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      total: (crawled.welfare?.length || 0) + applicable.length,
+      policies: applicable,
+      welfare: crawled.welfare || []
+    });
+  } catch (err: any) {
+    return NextResponse.json({
+      success: false,
+      error: err.message
+    }, { status: 500 });
+  }
+}
+
