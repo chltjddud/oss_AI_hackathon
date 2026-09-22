@@ -43,6 +43,12 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const cachedPoliciesRef = useRef<any[]>([]);
   const cachedNoticesRef = useRef<any[]>([]);
+  const keywordsRef = useRef<string[]>([]);
+  keywordsRef.current = keywords;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setActiveUser(propUser);
@@ -70,11 +76,16 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
 
   const currentUser = activeUser || propUser;
   const userEmail = currentUser?.email || undefined;
+  const currentUserId = currentUser?.id || currentUser?.email || '';
+  const currentUserRef = useRef<any>(currentUser);
+  currentUserRef.current = currentUser;
 
   const runSync = useCallback(async (targetKw?: string[]) => {
-    if (!currentUser) return;
+    const user = currentUserRef.current;
+    if (!user) return;
+    const email = user.email || undefined;
     try {
-      const userSavedKey = userEmail ? `suncheon_saved_policies_${userEmail.trim().toLowerCase()}` : null;
+      const userSavedKey = email ? `suncheon_saved_policies_${email.trim().toLowerCase()}` : null;
       const savedIdsRaw = (userSavedKey && localStorage.getItem(userSavedKey)) || localStorage.getItem('suncheon_saved_policies');
       const savedIds: string[] = savedIdsRaw ? JSON.parse(savedIdsRaw) : [];
 
@@ -99,23 +110,22 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
         ];
       }
 
-      const activeKw = targetKw || (keywords.length > 0 ? keywords : getInterestKeywords(userEmail));
+      const activeKw = targetKw || (keywordsRef.current.length > 0 ? keywordsRef.current : getInterestKeywords(email));
       const updated = syncNotifications(
         cachedPoliciesRef.current,
         cachedNoticesRef.current,
         savedIds,
         activeKw,
-        userEmail
+        email
       );
       setNotifications(updated);
     } catch (err) {
       console.error('Failed to run notification sync:', err);
     }
-  }, [currentUser, userEmail, keywords]);
+  }, []);
 
   // Load notifications and keywords on mount / when user changes
   useEffect(() => {
-    setMounted(true);
     if (typeof window === 'undefined') return;
 
     if (!currentUser) {
@@ -140,8 +150,9 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
 
     const handleStorageChange = () => {
       setNotifications(getStoredNotifications(userEmail));
-      handleKeywordsChanged();
-      runSync();
+      const kw = getInterestKeywords(userEmail);
+      setKeywords(kw);
+      runSync(kw);
     };
 
     const handleBookmarkChanged = () => {
@@ -156,7 +167,7 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
       window.removeEventListener('bookmark_changed', handleBookmarkChanged);
       window.removeEventListener('suncheon_keywords_changed', handleKeywordsChanged);
     };
-  }, [userEmail, currentUser, runSync]);
+  }, [userEmail, currentUserId, runSync]);
 
   // Close on outside click
   useEffect(() => {
@@ -262,13 +273,11 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
             }
             return;
           }
-          setIsOpen(prev => {
-            const nextState = !prev;
-            if (nextState) {
-              runSync();
-            }
-            return nextState;
-          });
+          const next = !isOpen;
+          setIsOpen(next);
+          if (next) {
+            runSync();
+          }
         }}
         className="relative p-2 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition-all cursor-pointer flex items-center justify-center group"
         title={currentUser ? '알림 센터' : '알림 센터 (로그인 후 이용 가능)'}
