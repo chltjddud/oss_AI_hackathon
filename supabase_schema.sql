@@ -81,3 +81,56 @@ CREATE POLICY "Allow public insert access for saved_policies" ON public.saved_po
 CREATE POLICY "Allow public delete access for saved_policies" ON public.saved_policies FOR DELETE USING (true);
 CREATE POLICY "Allow public update access for saved_policies" ON public.saved_policies FOR UPDATE USING (true);
 
+-- 5. RAG 지식 베이스 벡터 테이블 (rag_knowledge_documents)
+-- Supabase 대시보드 SQL Editor에서 vector 확장이 활성화되어 있어야 합니다: CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE IF NOT EXISTS public.rag_knowledge_documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    category TEXT DEFAULT '일반',
+    content TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    embedding vector(768),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- rag_knowledge_documents RLS 활성화 및 공용 정책
+ALTER TABLE public.rag_knowledge_documents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read for rag_knowledge_documents" ON public.rag_knowledge_documents FOR SELECT USING (true);
+CREATE POLICY "Allow public insert for rag_knowledge_documents" ON public.rag_knowledge_documents FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update for rag_knowledge_documents" ON public.rag_knowledge_documents FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete for rag_knowledge_documents" ON public.rag_knowledge_documents FOR DELETE USING (true);
+
+-- 벡터 유사도 검색 RPC 함수 (Gemini embedding 768차원 기준)
+CREATE OR REPLACE FUNCTION match_rag_documents(
+    query_embedding vector(768),
+    match_threshold float DEFAULT 0.3,
+    match_count int DEFAULT 5
+)
+RETURNS TABLE (
+    id UUID,
+    title TEXT,
+    category TEXT,
+    content TEXT,
+    metadata JSONB,
+    similarity float
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        rkd.id,
+        rkd.title,
+        rkd.category,
+        rkd.content,
+        rkd.metadata,
+        1 - (rkd.embedding <=> query_embedding) AS similarity
+    FROM public.rag_knowledge_documents rkd
+    WHERE 1 - (rkd.embedding <=> query_embedding) > match_threshold
+    ORDER BY similarity DESC
+    LIMIT match_count;
+END;
+$$;
+
+

@@ -80,7 +80,8 @@ export default function CustomSearchPage() {
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // AI Summary Modal for Notices
+  // AI Summary Modal for Policies and Notices
+  const [activePolicyModal, setActivePolicyModal] = useState<MatchedPolicy | null>(null);
   const [activeNoticeModal, setActiveNoticeModal] = useState<MatchedNotice | null>(null);
   const [summaries, setSummaries] = useState<Record<string, AiSummaryResult>>({});
   const [loadingSummaries, setLoadingSummaries] = useState<Record<string, boolean>>({});
@@ -144,6 +145,43 @@ export default function CustomSearchPage() {
       }
     } catch (err) {
       console.warn('Bookmark sync note:', err);
+    }
+  };
+
+  const handleOpenPolicySummary = async (policy: MatchedPolicy) => {
+    setActivePolicyModal(policy);
+    const key = `policy-${policy.id}`;
+
+    if (summaries[key] || loadingSummaries[key]) return;
+
+    try {
+      setLoadingSummaries(prev => ({ ...prev, [key]: true }));
+      const res = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: policy.id || policy.title,
+          title: policy.title,
+          source: policy.org,
+          dept: policy.dept,
+          target: policy.target,
+          description: policy.description,
+          date: policy.deadline,
+          url: policy.url,
+          type: 'policy'
+        })
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.summary) {
+          setSummaries(prev => ({ ...prev, [key]: json.summary }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to summarize policy:', err);
+    } finally {
+      setLoadingSummaries(prev => ({ ...prev, [key]: false }));
     }
   };
 
@@ -436,18 +474,28 @@ export default function CustomSearchPage() {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center justify-between gap-2 pt-4 border-t border-slate-100">
-                          <button
-                            onClick={() => toggleSavePolicy(policy)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                              isSaved
-                                ? 'bg-amber-50 text-amber-800 border-amber-300'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
-                            }`}
-                          >
-                            <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-amber-500 text-amber-500' : ''}`} />
-                            <span>{isSaved ? '보관됨' : '보관하기'}</span>
-                          </button>
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => toggleSavePolicy(policy)}
+                              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                                isSaved
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                              }`}
+                            >
+                              <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-amber-500 text-amber-500' : ''}`} />
+                              <span>{isSaved ? '보관됨' : '보관'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleOpenPolicySummary(policy)}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-600 hover:text-white transition-all cursor-pointer shadow-2xs"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>AI 3줄 요약</span>
+                            </button>
+                          </div>
 
                           {policy.url && policy.url !== '#' && (
                             <a
@@ -614,6 +662,20 @@ export default function CustomSearchPage() {
           </div>
         )}
       </main>
+
+      {/* Policy AI Summary Modal */}
+      {activePolicyModal && (
+        <AiSummaryModal
+          isOpen={!!activePolicyModal}
+          onClose={() => setActivePolicyModal(null)}
+          title={activePolicyModal.title}
+          source={activePolicyModal.org}
+          dept={activePolicyModal.dept}
+          url={activePolicyModal.url}
+          summary={summaries[`policy-${activePolicyModal.id}`] || null}
+          isLoading={!!loadingSummaries[`policy-${activePolicyModal.id}`]}
+        />
+      )}
 
       {/* Notice AI Summary Modal */}
       {activeNoticeModal && (

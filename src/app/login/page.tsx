@@ -129,12 +129,7 @@ export default function LoginPage() {
           window.dispatchEvent(new Event('auth_state_changed'));
         }
 
-        // 백그라운드 Supabase signUp 시도 (options에 이름 포함)
-        supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { name: cleanName } }
-        }).catch(() => {});
+        // Supabase Auth 이메일 발송을 방지하기 위해 로컬 인증 세션으로 즉시 가입 완료 처리
 
         setSuccessMsg(`${cleanName}님, 회원가입이 완료되었습니다! 즉시 로그인되었습니다.`);
         setTimeout(() => {

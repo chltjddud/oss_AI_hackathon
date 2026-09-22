@@ -1,5 +1,6 @@
 import { fetchSuncheonApplicableBenefits, ApplicablePolicy } from './api';
 import { getMergedNotices, CrawledItem } from './crawler';
+import { searchRagDocuments, RagDocumentChunk } from './rag';
 
 export interface ChatMessage {
   id: string;
@@ -61,10 +62,11 @@ export async function processChatCounseling(messages: ChatMessage[]): Promise<Ch
     throw new Error('질문 내용을 입력해주세요.');
   }
 
-  // 1. 공공 데이터(지원 정책 + 공지사항) 로드
-  const [allPolicies, allNotices] = await Promise.all([
+  // 1. 공공 데이터(지원 정책 + 공지사항) 및 고정밀 RAG 벡터 검색 병렬 실행
+  const [allPolicies, allNotices, ragDocs] = await Promise.all([
     fetchSuncheonApplicableBenefits(),
-    getMergedNotices(false)
+    getMergedNotices(false),
+    searchRagDocuments(userQuery, { topK: 5, threshold: 0.35 }).catch(() => [] as RagDocumentChunk[])
   ]);
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -87,7 +89,7 @@ export async function processChatCounseling(messages: ChatMessage[]): Promise<Ch
 
   const sortedPolicies = [...allPolicies]
     .sort((a, b) => scorePolicy(b) - scorePolicy(a))
-    .slice(0, 30);
+    .slice(0, 25);
 
   const scoreNotice = (n: CrawledItem) => {
     const text = `${n.title} ${n.source} ${n.dept || ''} ${n.reason || ''}`.toLowerCase();
@@ -100,7 +102,7 @@ export async function processChatCounseling(messages: ChatMessage[]): Promise<Ch
 
   const sortedNotices = [...allNotices]
     .sort((a, b) => scoreNotice(b) - scoreNotice(a))
-    .slice(0, 20);
+    .slice(0, 15);
 
   // Policy / Notice Lookup maps
   const policyMap = new Map(allPolicies.map(p => [p.id, p]));
@@ -108,7 +110,7 @@ export async function processChatCounseling(messages: ChatMessage[]): Promise<Ch
 
   // Fallback if no API key
   if (!apiKey) {
-    return generateFallbackResponse(userQuery, sortedPolicies, sortedNotices);
+    return generateFallbackResponse(userQuery, sortedPolicies, sortedNotices, ragDocs);
   }
 
   // 3. 대화 히스토리 구성 (최근 6개 턴)
@@ -116,25 +118,37 @@ export async function processChatCounseling(messages: ChatMessage[]): Promise<Ch
     return `${m.role === 'user' ? '사용자' : '상담사'}: ${m.content}`;
   }).join('\n');
 
+  // RAG 컨텍스트 텍스트 빌드
+  const ragContextText = ragDocs.length > 0
+    ? ragDocs.map((doc, idx) => `[RAG 근거 #${idx + 1} | 제목: ${doc.title} | 분야: ${doc.category} | 유사도: ${Math.round((doc.similarity || 0) * 100)}%]
+${doc.content}
+- 기관: ${doc.metadata?.org || '순천시'}
+- 공식 링크: ${doc.metadata?.url || 'https://www.suncheon.go.kr'}
+- 구비서류 안내: ${doc.metadata?.requiredDocs?.join(', ') || '해당 공고문 참조'}`).join('\n\n')
+    : '해당 질의에 대한 직접적인 RAG 근거 문서는 없으므로 아래 공공데이터 후보군을 기반으로 답변합니다.';
+
   const prompt = `당신은 순천시민을 위한 전문 1:1 맞춤 행정·복지 AI 비서 '순천 복지 도우미'입니다.
 사용자가 자신의 상황이나 지원 혜택에 대해 1:1 상담 질문을 하고 있습니다.
-아래 제공된 [순천시 지원 정책 및 실시간 공지사항 목록]을 바탕으로, 정확하고 친절하며 신뢰감 있는 상담 답변을 제공해주세요.
+아래 제공된 [RAG 고정밀 순천시 정책 근거 자료]와 [순천시 지원 정책 및 실시간 공지사항 목록]을 바탕으로, 정확하고 친절하며 신뢰감 있는 상담 답변을 제공해주세요.
 
 [사용자와의 최근 대화 기록]
 ${conversationHistory}
 
-[순천시 지원 정책 후보]
+[RAG 고정밀 순천시 복지 지식베이스 검색 결과]:
+${ragContextText}
+
+[순천시 지원 정책 후보]:
 ${sortedPolicies.map((p, i) => `[P_${i} | ID: ${p.id}] ${p.title} | 기관: ${p.org} | 대상: ${p.target} | 내용: ${p.description.slice(0, 140)}`).join('\n')}
 
-[순천시 실시간 공지사항 후보]
+[순천시 실시간 공지사항 후보]:
 ${sortedNotices.map((n, i) => `[N_${i} | ID: ${n.id}] [${n.source}] ${n.title} (${n.date || '최신'})`).join('\n')}
 
 [답변 작성 지침]:
 1. 일체의 이모티콘(이모지)을 절대 사용하지 마세요.
-2. 질문에 대해 핵심 신청 자격, 지원 내용, 신청 방법(또는 소관 부서)을 알기 쉽게 정리해 안내하세요.
-3. [필수 구비서류 및 정부24 안내]: 사용자가 신청 시 사전에 준비해야 할 구비서류(예: 신분증, 주민등록등본, 소득/재직 증빙서류, 사업자등록증 등)를 항목별로 명확하게 짚어주고, 주민등록등본이나 소득금액증명원 등 주요 민원 서류는 정부24(gov.kr)나 홈택스에서 온라인 무료 발급이 가능하다는 실용적인 안내를 덧붙여주세요.
-4. 사용자가 추가로 문의하거나 보충하면 좋을 사항(예: 거주지 요건, 나이 기준 등)을 덧붙여주세요.
-5. 사용자 상황과 가장 밀접한 추천 정책 ID(최대 3개)와 공지사항 ID(최대 2개)를 배열에 담아주세요.
+2. [RAG 고정밀 순천시 복지 지식베이스 검색 결과]에 명시된 실제 정책 내용(지원금액, 지원대상 연령/소득요건, 제외대상, 신청처)을 우선적으로 인용하여 사실에 기반해 정확하게 답변하세요.
+3. [필수 구비서류 및 정부24 안내]: 사용자가 신청 시 사전에 준비해야 할 구비서류(예: 신분증, 주민등록등본, 가족관계증명서, 임대차계약서, 소득증빙서류 등)를 명확하게 불릿 포인트로 정리해 주고, 주민등록등본·초본, 가족관계증명서, 소득금액증명원 등 주요 민원 서류는 정부24(gov.kr)나 홈택스에서 온라인 무료 발급이 가능하다는 실용적인 안내를 덧붙여주세요.
+4. 사용자가 추가로 문의하거나 보충하면 좋을 사항(예: 거주기간 요건, 나이 기준 등)을 덧붙여주세요.
+5. 사용자 상황과 가장 밀접한 추천 정책 ID(최대 3개)와 공지사항 ID(최대 2개)를 배열에 담아주세요. (RAG 근거에 있는 정책의 ID나 상기 정책 후보의 ID 활용 가능)
 
 반드시 다음 JSON 형식으로만 응답하세요:
 {
@@ -143,7 +157,8 @@ ${sortedNotices.map((n, i) => `[N_${i} | ID: ${n.id}] [${n.source}] ${n.title} (
   "recommendedNoticeIds": ["추천 공지 ID"]
 }`;
 
-  const candidateModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-lite-latest'];
+  // 최상위 추론 모델 gemini-3.7-flash 우선 배치
+  const candidateModels = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   let aiResponseText = '';
 
   for (const model of candidateModels) {
@@ -160,7 +175,7 @@ ${sortedNotices.map((n, i) => `[N_${i} | ID: ${n.id}] [${n.source}] ${n.title} (
               temperature: 0.25
             }
           }),
-          signal: AbortSignal.timeout(12000)
+          signal: AbortSignal.timeout(15000)
         }
       );
 
@@ -178,7 +193,7 @@ ${sortedNotices.map((n, i) => `[N_${i} | ID: ${n.id}] [${n.source}] ${n.title} (
   }
 
   if (!aiResponseText) {
-    return generateFallbackResponse(userQuery, sortedPolicies, sortedNotices);
+    return generateFallbackResponse(userQuery, sortedPolicies, sortedNotices, ragDocs);
   }
 
   try {
@@ -218,6 +233,23 @@ ${sortedNotices.map((n, i) => `[N_${i} | ID: ${n.id}] [${n.source}] ${n.title} (
       });
     }
 
+    // RAG 검색 결과로부터 추천 정책 보강
+    if (suggestedPolicies.length < 2 && ragDocs.length > 0) {
+      for (const doc of ragDocs) {
+        if (doc.metadata?.type !== 'notice' && !suggestedPolicies.some(p => p.title === doc.title)) {
+          suggestedPolicies.push({
+            id: doc.id,
+            title: doc.title,
+            org: doc.metadata?.org || '순천시',
+            target: doc.metadata?.target || '순천시민',
+            scope: 'suncheon',
+            url: doc.metadata?.url || 'https://www.suncheon.go.kr'
+          });
+          if (suggestedPolicies.length >= 3) break;
+        }
+      }
+    }
+
     // 결과가 비어있으면 관련도가 높은 상위 1개 보강
     if (suggestedPolicies.length === 0 && sortedPolicies.length > 0) {
       const topP = sortedPolicies[0];
@@ -238,14 +270,15 @@ ${sortedNotices.map((n, i) => `[N_${i} | ID: ${n.id}] [${n.source}] ${n.title} (
     };
   } catch (err) {
     console.error('Failed to parse Gemini chat response:', err);
-    return generateFallbackResponse(userQuery, sortedPolicies, sortedNotices);
+    return generateFallbackResponse(userQuery, sortedPolicies, sortedNotices, ragDocs);
   }
 }
 
 function generateFallbackResponse(
   query: string,
   policies: ApplicablePolicy[],
-  notices: CrawledItem[]
+  notices: CrawledItem[],
+  ragDocs: RagDocumentChunk[] = []
 ): ChatResponse {
   const topPolicies = policies.slice(0, 3).map(p => ({
     id: p.id,
@@ -264,8 +297,23 @@ function generateFallbackResponse(
     dept: n.dept
   }));
 
+  let message = '';
+  if (ragDocs.length > 0) {
+    const topDoc = ragDocs[0];
+    message = `문의하신 내용과 가장 관련도가 높은 순천시 정책은 '${topDoc.title}'입니다.\n\n` +
+      `[주요 내용]\n${topDoc.content}\n\n` +
+      `[안내 및 구비서류]\n` +
+      `- 주요 민원 서류(주민등록등본, 가족관계증명서, 소득금액증명원 등)는 정부24(gov.kr) 또는 홈택스에서 온라인 무료 즉시 발급이 가능합니다.\n` +
+      `- 세부 지원 요건 및 접수 일정은 하단의 추천 정책을 확인해 주시기 바랍니다.`;
+  } else {
+    message = `문의하신 '${query}' 관련 순천시 지원 정책 및 최신 공지사항을 선별해 안내해 드립니다.\n\n` +
+      `[안내 및 구비서류]\n` +
+      `- 신청 전 관할 읍·면·동 행정복지센터나 정부24(gov.kr)를 통해 최신 접수 요건 및 서류를 사전 확인하시는 것을 권장합니다.\n` +
+      `- 주민등록등본, 초본, 소득금액증명원 등 주요 구비서류는 정부24에서 온라인 무료 발급이 가능합니다.`;
+  }
+
   return {
-    message: `문의하신 '${query}' 관련하여 순천시와 관계 기관에서 지원하는 주요 혜택 및 공지사항을 안내해 드립니다. 상세한 지원 조건과 신청 기한은 아래 추천 카드를 확인해 주시기 바랍니다.`,
+    message: stripEmojis(message),
     suggestedPolicies: topPolicies,
     suggestedNotices: topNotices
   };

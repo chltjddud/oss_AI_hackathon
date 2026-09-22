@@ -20,19 +20,27 @@ export const PRESET_KEYWORDS = [
   '청년',
   '주거',
   '월세',
-  '장학금',
-  '창업',
   '일자리',
   '취업',
+  '창업',
+  '소상공인',
+  '신혼부부',
+  '임산부',
   '출산',
   '육아',
   '보육',
-  '문화',
-  '소상공인',
-  '교통비',
+  '아동',
+  '청소년',
+  '장학금',
+  '중장년',
   '어르신',
-  '농업',
-  '다문화'
+  '노인',
+  '장애인',
+  '1인가구',
+  '다자녀',
+  '다문화',
+  '교통비',
+  '문화'
 ];
 
 const STORAGE_KEY_NOTIFICATIONS = 'suncheon_notifications';
@@ -82,9 +90,9 @@ export function getInterestKeywords(): string[] {
   if (typeof window === 'undefined') return DEFAULT_KEYWORDS;
   try {
     const raw = localStorage.getItem(STORAGE_KEY_KEYWORDS);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (err) {
     console.error('Failed to load interest keywords:', err);

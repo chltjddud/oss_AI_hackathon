@@ -90,17 +90,25 @@ export default function NotificationCenter() {
 
     runSync();
 
-    // Listen for storage events & bookmark_changed custom event
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'suncheon_notifications') {
+    // Listen for storage events & keyword change events
+    const handleKeywordsChanged = () => {
+      const kw = getInterestKeywords();
+      setKeywords((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(kw)) return prev;
+        return kw;
+      });
+      runSync(kw);
+    };
+
+    const handleStorageChange = (e?: Event) => {
+      const se = e as StorageEvent | undefined;
+      if (!se?.key || se.key === 'suncheon_notifications') {
         setNotifications(getStoredNotifications());
       }
-      if (e.key === 'suncheon_interest_keywords') {
-        const kw = getInterestKeywords();
-        setKeywords(kw);
-        runSync(kw);
+      if (!se?.key || se.key === 'suncheon_interest_keywords') {
+        handleKeywordsChanged();
       }
-      if (e.key === 'suncheon_saved_policies') {
+      if (!se?.key || se.key === 'suncheon_saved_policies') {
         runSync();
       }
     };
@@ -109,11 +117,13 @@ export default function NotificationCenter() {
       runSync();
     };
 
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('storage', handleStorageChange as EventListener);
     window.addEventListener('bookmark_changed', handleBookmarkChanged);
+    window.addEventListener('suncheon_keywords_changed', handleKeywordsChanged);
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('storage', handleStorageChange as EventListener);
       window.removeEventListener('bookmark_changed', handleBookmarkChanged);
+      window.removeEventListener('suncheon_keywords_changed', handleKeywordsChanged);
     };
   }, []);
 
@@ -159,14 +169,37 @@ export default function NotificationCenter() {
     const updated = [...keywords, clean];
     setKeywords(updated);
     saveInterestKeywords(updated);
-    window.dispatchEvent(new Event('storage'));
+    // Update active user session interests if present
+    try {
+      const authStr = localStorage.getItem('suncheon_auth_session');
+      if (authStr) {
+        const u = JSON.parse(authStr);
+        u.interests = updated;
+        if (u.user_metadata) u.user_metadata.interests = updated;
+        localStorage.setItem('suncheon_auth_session', JSON.stringify(u));
+      }
+    } catch {}
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('suncheon_keywords_changed', { detail: updated }));
+    }, 0);
   };
 
   const handleRemoveKeyword = (kw: string) => {
     const updated = keywords.filter(k => k !== kw);
     setKeywords(updated);
     saveInterestKeywords(updated);
-    window.dispatchEvent(new Event('storage'));
+    try {
+      const authStr = localStorage.getItem('suncheon_auth_session');
+      if (authStr) {
+        const u = JSON.parse(authStr);
+        u.interests = updated;
+        if (u.user_metadata) u.user_metadata.interests = updated;
+        localStorage.setItem('suncheon_auth_session', JSON.stringify(u));
+      }
+    } catch {}
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('suncheon_keywords_changed', { detail: updated }));
+    }, 0);
   };
 
   const filteredNotifications = notifications.filter(n => {
@@ -449,7 +482,18 @@ export default function NotificationCenter() {
                         onClick={() => {
                           setKeywords([]);
                           saveInterestKeywords([]);
-                          window.dispatchEvent(new Event('storage'));
+                          try {
+                            const authStr = localStorage.getItem('suncheon_auth_session');
+                            if (authStr) {
+                              const u = JSON.parse(authStr);
+                              u.interests = [];
+                              if (u.user_metadata) u.user_metadata.interests = [];
+                              localStorage.setItem('suncheon_auth_session', JSON.stringify(u));
+                            }
+                          } catch {}
+                          setTimeout(() => {
+                            window.dispatchEvent(new CustomEvent('suncheon_keywords_changed', { detail: [] }));
+                          }, 0);
                         }}
                         className="text-[11px] text-slate-400 hover:text-red-600 font-semibold transition-colors cursor-pointer"
                       >

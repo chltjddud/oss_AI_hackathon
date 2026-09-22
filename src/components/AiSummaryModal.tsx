@@ -129,66 +129,114 @@ export default function AiSummaryModal({
               </div>
 
               {/* Required Documents Section with Government 24 (정부24) Issuance Links */}
-              {summary.requiredDocuments && summary.requiredDocuments.length > 0 && (
-                <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/80 border border-amber-200">
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2 text-amber-950 font-bold text-xs sm:text-sm">
-                      <FileText className="w-4 h-4 text-amber-700 shrink-0" />
-                      <span>신청 필수 구비서류 ({summary.requiredDocuments.length}건)</span>
-                    </div>
-                    <a
-                      href="https://www.gov.kr"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] text-amber-800 hover:text-amber-950 font-bold underline shrink-0"
-                    >
-                      <span>정부24 바로가기</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
+              {summary.requiredDocuments && summary.requiredDocuments.length > 0 && (() => {
+                const isNoDocRequired =
+                  summary.requiredDocuments.length === 1 &&
+                  (summary.requiredDocuments[0].includes('해당없음') ||
+                    summary.requiredDocuments[0].includes('별도 제출') ||
+                    summary.requiredDocuments[0].includes('서류 없음') ||
+                    summary.requiredDocuments[0].includes('불필요'));
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {summary.requiredDocuments.map((doc, idx) => {
-                      const govDoc = resolveGovDocument(doc);
-                      return (
-                        <div
-                          key={idx}
-                          className="flex flex-col justify-between p-3 rounded-xl bg-white/95 border border-amber-200/80 text-xs text-amber-950 shadow-2xs hover:border-amber-400 hover:shadow-xs transition-all"
-                        >
-                          <div className="flex items-start gap-2 mb-2">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                            <div className="min-w-0">
-                              <span className="font-semibold text-slate-800 leading-snug block">
-                                {doc}
-                              </span>
-                              {govDoc.badge && (
-                                <span className="inline-block mt-0.5 text-[10px] font-bold text-amber-800 bg-amber-100/80 px-1.5 py-0.2 rounded">
-                                  {govDoc.badge}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <a
-                            href={govDoc.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center gap-1 w-full py-1.5 px-2.5 rounded-lg bg-amber-100/80 hover:bg-amber-600 hover:text-white text-amber-900 font-bold text-[11px] transition-colors mt-auto group cursor-pointer"
-                            title={`${doc} - ${govDoc.source} 온라인 발급 및 신청 페이지로 이동`}
-                          >
-                            <span>{govDoc.source} {govDoc.source === '정부24' ? '신청·발급' : '바로가기'}</span>
-                            <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                          </a>
+                if (isNoDocRequired) {
+                  return (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200">
+                      <div className="flex items-center justify-between gap-2 mb-2.5">
+                        <div className="flex items-center gap-2 text-emerald-950 font-bold text-xs sm:text-sm">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>민원인 제출 구비서류: 서류 제출 불필요</span>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          정부24 확인
+                        </span>
+                      </div>
+                      <p className="text-xs text-emerald-900 leading-relaxed font-medium mb-3">
+                        {summary.requiredDocuments[0]}
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <a
+                          href={url && url !== '#' ? url : 'https://www.gov.kr'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-1.5 flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shadow-xs group cursor-pointer"
+                        >
+                          <span>공식 신청 바로가기</span>
+                          <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                        </a>
+                        <a
+                          href="https://www.gov.kr"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-1 py-2 px-3 rounded-xl bg-emerald-100/80 hover:bg-emerald-200 text-emerald-900 font-bold text-xs transition-colors cursor-pointer"
+                        >
+                          <span>정부24 공고확인</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                }
 
-                  <p className="text-[11px] text-amber-800/90 mt-3 pt-2 border-t border-amber-200/70 font-medium">
-                    정부24 및 공공포털을 통해 주민등록등본, 소득금액증명원 등을 수수료 없이 즉시 온라인 발급 및 전자문서지갑으로 제출하실 수 있습니다.
-                  </p>
-                </div>
-              )}
+                return (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/80 border border-amber-200">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 text-amber-950 font-bold text-xs sm:text-sm">
+                        <FileText className="w-4 h-4 text-amber-700 shrink-0" />
+                        <span>신청 필수 구비서류 ({summary.requiredDocuments.length}건)</span>
+                      </div>
+                      <a
+                        href="https://www.gov.kr"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-amber-800 hover:text-amber-950 font-bold underline shrink-0"
+                      >
+                        <span>정부24 바로가기</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {summary.requiredDocuments.map((doc, idx) => {
+                        const govDoc = resolveGovDocument(doc);
+                        return (
+                          <div
+                            key={idx}
+                            className="flex flex-col justify-between p-3 rounded-xl bg-white/95 border border-amber-200/80 text-xs text-amber-950 shadow-2xs hover:border-amber-400 hover:shadow-xs transition-all"
+                          >
+                            <div className="flex items-start gap-2 mb-2">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <span className="font-semibold text-slate-800 leading-snug block">
+                                  {doc}
+                                </span>
+                                {govDoc.badge && (
+                                  <span className="inline-block mt-0.5 text-[10px] font-bold text-amber-800 bg-amber-100/80 px-1.5 py-0.2 rounded">
+                                    {govDoc.badge}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <a
+                              href={govDoc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center gap-1 w-full py-1.5 px-2.5 rounded-lg bg-amber-100/80 hover:bg-amber-600 hover:text-white text-amber-900 font-bold text-[11px] transition-colors mt-auto group cursor-pointer"
+                              title={`${doc} - ${govDoc.source} 온라인 발급 및 신청 페이지로 이동`}
+                            >
+                              <span>{govDoc.source} {govDoc.source === '정부24' ? '신청·발급' : '바로가기'}</span>
+                              <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                            </a>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <p className="text-[11px] text-amber-800/90 mt-3 pt-2 border-t border-amber-200/70 font-medium">
+                      정부24 및 공공포털을 통해 주민등록등본, 소득금액증명원 등을 수수료 없이 즉시 온라인 발급 및 전자문서지갑으로 제출하실 수 있습니다.
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Target, Deadline & Tip Grid */}
               <div className="grid grid-cols-1 gap-3 pt-2">
