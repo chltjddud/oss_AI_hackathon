@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
@@ -41,6 +41,8 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
   const [filterType, setFilterType] = useState<'all' | 'deadline' | 'keyword'>('all');
   const [keywords, setKeywords] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const cachedPoliciesRef = useRef<any[]>([]);
+  const cachedNoticesRef = useRef<any[]>([]);
 
   useEffect(() => {
     setActiveUser(propUser);
@@ -69,6 +71,48 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
   const currentUser = activeUser || propUser;
   const userEmail = currentUser?.email || undefined;
 
+  const runSync = useCallback(async (targetKw?: string[]) => {
+    if (!currentUser) return;
+    try {
+      const userSavedKey = userEmail ? `suncheon_saved_policies_${userEmail.trim().toLowerCase()}` : null;
+      const savedIdsRaw = (userSavedKey && localStorage.getItem(userSavedKey)) || localStorage.getItem('suncheon_saved_policies');
+      const savedIds: string[] = savedIdsRaw ? JSON.parse(savedIdsRaw) : [];
+
+      if (cachedPoliciesRef.current.length === 0 || cachedNoticesRef.current.length === 0) {
+        const [crawlRes, policiesRes] = await Promise.allSettled([
+          fetch('/api/crawl?category=all').then(r => r.json()),
+          fetch('/api/policies/sync').then(r => r.json())
+        ]);
+
+        const crawlData = crawlRes.status === 'fulfilled' ? crawlRes.value : null;
+        const policiesData = policiesRes.status === 'fulfilled' ? policiesRes.value : null;
+
+        cachedNoticesRef.current = [
+          ...(crawlData?.notice || []),
+          ...(crawlData?.welfare || [])
+        ];
+
+        cachedPoliciesRef.current = [
+          ...(policiesData?.policies || []),
+          ...(policiesData?.welfare || []),
+          ...(crawlData?.welfare || [])
+        ];
+      }
+
+      const activeKw = targetKw || (keywords.length > 0 ? keywords : getInterestKeywords(userEmail));
+      const updated = syncNotifications(
+        cachedPoliciesRef.current,
+        cachedNoticesRef.current,
+        savedIds,
+        activeKw,
+        userEmail
+      );
+      setNotifications(updated);
+    } catch (err) {
+      console.error('Failed to run notification sync:', err);
+    }
+  }, [currentUser, userEmail, keywords]);
+
   // Load notifications and keywords on mount / when user changes
   useEffect(() => {
     setMounted(true);
@@ -85,57 +129,12 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
     setNotifications(storedNotifs);
     setKeywords(storedKw);
 
-    let cachedPolicies: any[] = [];
-    let cachedNotices: any[] = [];
-
-    // Background evaluation with cached/fetched data
-    const runSync = async (currentKw = storedKw) => {
-      try {
-        const savedIdsRaw = localStorage.getItem('suncheon_saved_policies');
-        const savedIds: string[] = savedIdsRaw ? JSON.parse(savedIdsRaw) : [];
-
-        if (cachedPolicies.length === 0 || cachedNotices.length === 0) {
-          const [crawlRes, policiesRes] = await Promise.allSettled([
-            fetch('/api/crawl?category=all').then(r => r.json()),
-            fetch('/api/policies/sync').then(r => r.json())
-          ]);
-
-          const crawlData = crawlRes.status === 'fulfilled' ? crawlRes.value : null;
-          const policiesData = policiesRes.status === 'fulfilled' ? policiesRes.value : null;
-
-          cachedNotices = [
-            ...(crawlData?.notice || []),
-            ...(crawlData?.welfare || [])
-          ];
-
-          cachedPolicies = [
-            ...(policiesData?.policies || []),
-            ...(policiesData?.welfare || [])
-          ];
-        }
-
-        const updated = syncNotifications(
-          cachedPolicies,
-          cachedNotices,
-          savedIds,
-          currentKw,
-          userEmail
-        );
-        setNotifications(updated);
-      } catch (err) {
-        console.error('Failed to run notification sync:', err);
-      }
-    };
-
-    runSync();
+    runSync(storedKw);
 
     // Listen for storage events & keyword change events
-    const handleKeywordsChanged = () => {
-      const kw = getInterestKeywords(userEmail);
-      setKeywords((prev) => {
-        if (JSON.stringify(prev) === JSON.stringify(kw)) return prev;
-        return kw;
-      });
+    const handleKeywordsChanged = (e?: any) => {
+      const kw = e?.detail || getInterestKeywords(userEmail);
+      setKeywords(kw);
       runSync(kw);
     };
 
@@ -157,7 +156,7 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
       window.removeEventListener('bookmark_changed', handleBookmarkChanged);
       window.removeEventListener('suncheon_keywords_changed', handleKeywordsChanged);
     };
-  }, [userEmail, currentUser]);
+  }, [userEmail, currentUser, runSync]);
 
   // Close on outside click
   useEffect(() => {
@@ -211,6 +210,7 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
         localStorage.setItem('suncheon_auth_session', JSON.stringify(u));
       }
     } catch {}
+    runSync(updated);
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('suncheon_keywords_changed', { detail: updated }));
     }, 0);
@@ -229,6 +229,7 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
         localStorage.setItem('suncheon_auth_session', JSON.stringify(u));
       }
     } catch {}
+    runSync(updated);
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('suncheon_keywords_changed', { detail: updated }));
     }, 0);
@@ -261,7 +262,13 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
             }
             return;
           }
-          setIsOpen(prev => !prev);
+          setIsOpen(prev => {
+            const nextState = !prev;
+            if (nextState) {
+              runSync();
+            }
+            return nextState;
+          });
         }}
         className="relative p-2 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition-all cursor-pointer flex items-center justify-center group"
         title={currentUser ? '알림 센터' : '알림 센터 (로그인 후 이용 가능)'}

@@ -113,7 +113,8 @@ export default function MyPage() {
           }
 
           // 알림 센터 관심 키워드와 1:1 연동 로드
-          const currentKeywords = getInterestKeywords();
+          const targetEmail = currentUser?.email || undefined;
+          const currentKeywords = getInterestKeywords(targetEmail);
           setKeywordCount(currentKeywords.length);
           setInterests(currentKeywords);
 
@@ -138,7 +139,7 @@ export default function MyPage() {
           setPhone(currentUser.phone || currentUser.user_metadata?.phone || '');
           setDistrict(currentUser.district || currentUser.user_metadata?.district || '조례동');
           // 알림센터의 키워드를 단일 진실 공급원(Single Source of Truth)으로 사용
-          const kw = getInterestKeywords();
+          const kw = getInterestKeywords(currentUser.email);
           setInterests(kw);
           setKeywordCount(kw.length);
         } else {
@@ -165,14 +166,17 @@ export default function MyPage() {
     });
 
     // 알림센터 또는 다른 탭에서의 키워드/보관함 변경 이벤트 실시간 수신
-    const handleKeywordsSync = () => {
-      const kw = getInterestKeywords();
-      setInterests((prev) => {
-        if (JSON.stringify(prev) === JSON.stringify(kw)) return prev;
-        return kw;
-      });
+    const handleKeywordsSync = (e?: any) => {
+      const authStr = typeof window !== 'undefined' ? (localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user')) : null;
+      let targetEmail: string | undefined = undefined;
+      if (authStr) {
+        try { targetEmail = JSON.parse(authStr).email; } catch {}
+      }
+      const kw = e?.detail || getInterestKeywords(targetEmail);
+      setInterests(kw);
       setKeywordCount(kw.length);
-      const raw = localStorage.getItem('suncheon_saved_policies');
+      const userSavedKey = targetEmail ? `suncheon_saved_policies_${targetEmail.toLowerCase()}` : null;
+      const raw = (userSavedKey && localStorage.getItem(userSavedKey)) || localStorage.getItem('suncheon_saved_policies');
       setBookmarkCount(raw ? JSON.parse(raw).length : 0);
     };
 
@@ -204,9 +208,10 @@ export default function MyPage() {
       ? interests.filter((item) => item !== tag)
       : [...interests, tag];
 
+    const targetEmail = email || user?.email;
     setInterests(next);
     setKeywordCount(next.length);
-    saveInterestKeywords(next);
+    saveInterestKeywords(next, targetEmail);
 
     // 세션 유저 객체도 동기화
     try {
@@ -225,9 +230,10 @@ export default function MyPage() {
   };
 
   const handleSelectAllInterests = () => {
+    const targetEmail = email || user?.email;
     setInterests(WELFARE_INTERESTS);
     setKeywordCount(WELFARE_INTERESTS.length);
-    saveInterestKeywords(WELFARE_INTERESTS);
+    saveInterestKeywords(WELFARE_INTERESTS, targetEmail);
 
     try {
       const authStr = localStorage.getItem('suncheon_auth_session');
@@ -245,9 +251,10 @@ export default function MyPage() {
   };
 
   const handleClearAllInterests = () => {
+    const targetEmail = email || user?.email;
     setInterests([]);
     setKeywordCount(0);
-    saveInterestKeywords([]);
+    saveInterestKeywords([], targetEmail);
 
     try {
       const authStr = localStorage.getItem('suncheon_auth_session');
@@ -323,7 +330,7 @@ export default function MyPage() {
         }
 
         // 알림 센터 관심 키워드 및 북마크 스토리지 실시간 동기화
-        saveInterestKeywords(interests);
+        saveInterestKeywords(interests, user?.email || email);
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('suncheon_keywords_changed', { detail: interests }));
           window.dispatchEvent(new Event('bookmark_changed'));

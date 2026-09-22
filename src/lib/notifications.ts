@@ -190,6 +190,35 @@ export function clearAllStoredNotifications(userEmail?: string): void {
   saveStoredNotifications([], userEmail);
 }
 
+export const KEYWORD_SYNONYMS: Record<string, string[]> = {
+  '청년': ['청년', '청춘', '대학생', '청년인턴', '청년센터'],
+  '주거': ['주거', '주택', '월세', '전세', '임대', '보금자리', '행복주택', '주거안정'],
+  '월세': ['월세', '주거비', '임차료', '월차임'],
+  '일자리': ['일자리', '취업', '채용', '구직', '고용', '인턴', '근로'],
+  '취업': ['취업', '구직', '면접', '자격증', '취업준비', '일자리'],
+  '창업': ['창업', '스타트업', '기업가', '창업자', '사업화', '창업연당'],
+  '소상공인': ['소상공인', '자영업', '소상공', '골목상권', '경영개선', '특례보증'],
+  '신혼부부': ['신혼부부', '신혼', '결혼', '예비부부'],
+  '임산부': ['임산부', '임신', '산모', '모자보건', '태아', '출산'],
+  '출산': ['출산', '출생', '출산장려금', '신생아', '산후조리'],
+  '육아': ['육아', '양육', '아동수당', '부모급여', '아이돌봄', '어린이집'],
+  '보육': ['보육', '어린이집', '유치원', '돌봄', '가정양육'],
+  '아동': ['아동', '어린이', '유아', '영유아', '아동복지'],
+  '청소년': ['청소년', '중고등', '학생', '청소년수당', '방과후'],
+  '장학금': ['장학', '장학금', '학자금', '장학생', '교육비'],
+  '중장년': ['중장년', '신중년', '5060', '인생이모작', '재취업'],
+  '어르신': ['어르신', '노인', '경로', '기초연금', '노인복지', '노령'],
+  '노인': ['노인', '어르신', '경로', '기초연금', '노인복지', '장기요양'],
+  '장애인': ['장애인', '장애', '발달장애', '장애수당', '재활'],
+  '1인가구': ['1인가구', '일인가구', '독거', '혼자', '1인 가구'],
+  '다자녀': ['다자녀', '셋째', '다둥이', '다자녀가구'],
+  '보훈': ['보훈', '국가유공자', '참전', '유공자'],
+  '문화예술': ['문화', '예술', '공연', '전시', '문화재단', '문화누리'],
+  '농업인': ['농업', '농민', '농가', '농업인', '영농', '농촌'],
+  '귀농귀촌': ['귀농', '귀촌', '전입', '귀농인'],
+  '소득지원': ['소득지원', '생계', '기초생활', '차상위', '긴급복지', '생계급여']
+};
+
 export interface SyncCandidatePolicy {
   id: string;
   title: string;
@@ -200,6 +229,8 @@ export interface SyncCandidatePolicy {
   description?: string;
   target?: string;
   category?: string;
+  reason?: string;
+  date?: string;
 }
 
 export interface SyncCandidateNotice {
@@ -216,7 +247,7 @@ export interface SyncCandidateNotice {
  * Main Notification Evaluation Engine
  * Evaluates:
  * 1. Saved bookmarks for approaching deadlines (D-Day, D-1, D-3, D-7)
- * 2. Active interest keywords against policies and notices
+ * 2. Active interest keywords against policies and notices with synonym expansion
  */
 export function syncNotifications(
   allPolicies: SyncCandidatePolicy[],
@@ -226,8 +257,17 @@ export function syncNotifications(
   userEmail?: string
 ): NotificationItem[] {
   const existing = getStoredNotifications(userEmail);
-  const existingMap = new Map<string, NotificationItem>(existing.map(n => [n.id, n]));
   const todayStr = new Date().toISOString().split('T')[0];
+
+  const activeKeywords = keywords.filter(k => k.trim().length >= 2);
+  const activeKeywordSet = new Set(activeKeywords.map(k => k.trim().toLowerCase()));
+
+  // 1. Prune existing keyword notifications if their keyword tag is no longer active
+  const validExisting = existing.filter(item => {
+    if (item.type !== 'keyword') return true;
+    return activeKeywordSet.has((item.tag || '').trim().toLowerCase());
+  });
+  const validExistingMap = new Map<string, NotificationItem>(validExisting.map(n => [n.id, n]));
 
   const newItems: NotificationItem[] = [];
 
@@ -246,7 +286,7 @@ export function syncNotifications(
     if (dDay >= 0 && dDay <= 7) {
       const notifId = `deadline-${policy.id}-${todayStr}-d${dDay}`;
 
-      if (!existingMap.has(notifId)) {
+      if (!validExistingMap.has(notifId)) {
         let tag = `D-${dDay}`;
         let message = '';
 
@@ -280,56 +320,65 @@ export function syncNotifications(
   // ----------------------------------------------------
   // 2. Keyword-based New Notice & Policy Notifications
   // ----------------------------------------------------
-  const activeKeywords = keywords.filter(k => k.trim().length >= 2);
-
   for (const kw of activeKeywords) {
-    const lowerKw = kw.toLowerCase();
+    const synonyms = KEYWORD_SYNONYMS[kw] || [kw];
+    const lowerSynonyms = synonyms.map(s => s.toLowerCase());
 
-    // Check notices
-    for (const notice of allNotices.slice(0, 30)) {
-      const text = `${notice.title} ${notice.dept || ''} ${notice.reason || ''}`.toLowerCase();
-      if (text.includes(lowerKw)) {
+    // Check notices (scan full notice dataset, max 3 per keyword)
+    let noticeMatchCount = 0;
+    for (const notice of allNotices) {
+      if (noticeMatchCount >= 3) break;
+      const text = `${notice.title} ${notice.dept || ''} ${notice.reason || ''} ${notice.source || ''}`.toLowerCase();
+      const isMatched = lowerSynonyms.some(term => text.includes(term));
+      if (isMatched) {
         const notifId = `keyword-notice-${notice.id}-${kw}`;
-        if (!existingMap.has(notifId)) {
+        if (!validExistingMap.has(notifId)) {
           newItems.push({
             id: notifId,
             type: 'keyword',
-            title: `[${kw} 신규 공고] ${notice.title}`,
-            message: `관심 키워드 '${kw}' 관련 최신 공지사항이 등록되었습니다.`,
+            title: `[${kw} 맞춤 공고] ${notice.title}`,
+            message: `관심 분야 '${kw}' 관련 순천시 최신 공지/소식이 등록되었습니다.`,
             targetUrl: notice.link || '/notices',
             tag: kw,
             createdAt: new Date().toISOString(),
             isRead: false,
             org: notice.source || '순천시'
           });
+          validExistingMap.set(notifId, newItems[newItems.length - 1]);
         }
+        noticeMatchCount++;
       }
     }
 
-    // Check policies
-    for (const policy of allPolicies.slice(0, 30)) {
-      const text = `${policy.title} ${policy.target || ''} ${policy.description || ''} ${policy.category || ''}`.toLowerCase();
-      if (text.includes(lowerKw)) {
+    // Check policies (scan full policy dataset, max 3 per keyword)
+    let policyMatchCount = 0;
+    for (const policy of allPolicies) {
+      if (policyMatchCount >= 3) break;
+      const text = `${policy.title} ${policy.target || ''} ${policy.description || ''} ${policy.category || ''} ${policy.reason || ''} ${policy.dept || ''}`.toLowerCase();
+      const isMatched = lowerSynonyms.some(term => text.includes(term));
+      if (isMatched) {
         const notifId = `keyword-policy-${policy.id}-${kw}`;
-        if (!existingMap.has(notifId)) {
+        if (!validExistingMap.has(notifId)) {
           newItems.push({
             id: notifId,
             type: 'keyword',
             title: `[${kw} 맞춤 혜택] ${policy.title}`,
-            message: `관심 키워드 '${kw}'에 부합하는 지원 정책이 등록되었습니다.`,
+            message: `관심 분야 '${kw}'에 부합하는 순천시 지원 정책이 등록되었습니다.`,
             targetUrl: policy.url || '/policies',
             tag: kw,
             createdAt: new Date().toISOString(),
             isRead: false,
-            org: policy.org || '순천시'
+            org: policy.org || policy.dept || '순천시'
           });
+          validExistingMap.set(notifId, newItems[newItems.length - 1]);
         }
+        policyMatchCount++;
       }
     }
   }
 
   // Combine and sort by createdAt descending
-  const combined = [...newItems, ...existing];
+  const combined = [...newItems, ...validExisting];
 
   // Limit stored notifications to recent 50 items
   const sorted = combined
