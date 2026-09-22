@@ -28,8 +28,13 @@ import {
   syncNotifications
 } from '@/lib/notifications';
 
-export default function NotificationCenter() {
+interface NotificationCenterProps {
+  user?: any;
+}
+
+export default function NotificationCenter({ user: propUser }: NotificationCenterProps) {
   const [mounted, setMounted] = useState(false);
+  const [activeUser, setActiveUser] = useState<any>(propUser || null);
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -37,13 +42,46 @@ export default function NotificationCenter() {
   const [keywords, setKeywords] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  // Load notifications and keywords on mount
+  useEffect(() => {
+    setActiveUser(propUser);
+  }, [propUser]);
+
+  useEffect(() => {
+    const handleAuth = () => {
+      if (typeof window !== 'undefined') {
+        const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
+        if (authStr) {
+          try {
+            setActiveUser(JSON.parse(authStr));
+          } catch {
+            setActiveUser(null);
+          }
+        } else {
+          setActiveUser(null);
+        }
+      }
+    };
+    handleAuth();
+    window.addEventListener('auth_state_changed', handleAuth);
+    return () => window.removeEventListener('auth_state_changed', handleAuth);
+  }, []);
+
+  const currentUser = activeUser || propUser;
+  const userEmail = currentUser?.email || undefined;
+
+  // Load notifications and keywords on mount / when user changes
   useEffect(() => {
     setMounted(true);
     if (typeof window === 'undefined') return;
 
-    const storedNotifs = getStoredNotifications();
-    const storedKw = getInterestKeywords();
+    if (!currentUser) {
+      setNotifications([]);
+      setKeywords([]);
+      return;
+    }
+
+    const storedNotifs = getStoredNotifications(userEmail);
+    const storedKw = getInterestKeywords(userEmail);
     setNotifications(storedNotifs);
     setKeywords(storedKw);
 
@@ -80,7 +118,8 @@ export default function NotificationCenter() {
           cachedPolicies,
           cachedNotices,
           savedIds,
-          currentKw
+          currentKw,
+          userEmail
         );
         setNotifications(updated);
       } catch (err) {
@@ -92,7 +131,7 @@ export default function NotificationCenter() {
 
     // Listen for storage events & keyword change events
     const handleKeywordsChanged = () => {
-      const kw = getInterestKeywords();
+      const kw = getInterestKeywords(userEmail);
       setKeywords((prev) => {
         if (JSON.stringify(prev) === JSON.stringify(kw)) return prev;
         return kw;
@@ -100,17 +139,10 @@ export default function NotificationCenter() {
       runSync(kw);
     };
 
-    const handleStorageChange = (e?: Event) => {
-      const se = e as StorageEvent | undefined;
-      if (!se?.key || se.key === 'suncheon_notifications') {
-        setNotifications(getStoredNotifications());
-      }
-      if (!se?.key || se.key === 'suncheon_interest_keywords') {
-        handleKeywordsChanged();
-      }
-      if (!se?.key || se.key === 'suncheon_saved_policies') {
-        runSync();
-      }
+    const handleStorageChange = () => {
+      setNotifications(getStoredNotifications(userEmail));
+      handleKeywordsChanged();
+      runSync();
     };
 
     const handleBookmarkChanged = () => {
@@ -125,7 +157,7 @@ export default function NotificationCenter() {
       window.removeEventListener('bookmark_changed', handleBookmarkChanged);
       window.removeEventListener('suncheon_keywords_changed', handleKeywordsChanged);
     };
-  }, []);
+  }, [userEmail, currentUser]);
 
   // Close on outside click
   useEffect(() => {
@@ -140,26 +172,26 @@ export default function NotificationCenter() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = currentUser ? notifications.filter(n => !n.isRead).length : 0;
 
   const handleMarkAsRead = (id: string) => {
-    const updated = markNotificationAsRead(id);
+    const updated = markNotificationAsRead(id, userEmail);
     setNotifications(updated);
   };
 
   const handleMarkAllAsRead = () => {
-    const updated = markAllNotificationsAsRead();
+    const updated = markAllNotificationsAsRead(userEmail);
     setNotifications(updated);
   };
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = deleteStoredNotification(id);
+    const updated = deleteStoredNotification(id, userEmail);
     setNotifications(updated);
   };
 
   const handleClearAll = () => {
-    clearAllStoredNotifications();
+    clearAllStoredNotifications(userEmail);
     setNotifications([]);
   };
 
@@ -168,7 +200,7 @@ export default function NotificationCenter() {
     if (!clean || keywords.includes(clean)) return;
     const updated = [...keywords, clean];
     setKeywords(updated);
-    saveInterestKeywords(updated);
+    saveInterestKeywords(updated, userEmail);
     // Update active user session interests if present
     try {
       const authStr = localStorage.getItem('suncheon_auth_session');
@@ -187,7 +219,7 @@ export default function NotificationCenter() {
   const handleRemoveKeyword = (kw: string) => {
     const updated = keywords.filter(k => k !== kw);
     setKeywords(updated);
-    saveInterestKeywords(updated);
+    saveInterestKeywords(updated, userEmail);
     try {
       const authStr = localStorage.getItem('suncheon_auth_session');
       if (authStr) {
@@ -222,13 +254,21 @@ export default function NotificationCenter() {
     <div className="relative" ref={dropdownRef}>
       {/* Bell Button */}
       <button
-        onClick={() => setIsOpen(prev => !prev)}
+        onClick={() => {
+          if (!currentUser) {
+            if (window.confirm('로그인 후 맞춤 알림 서비스를 이용하실 수 있습니다.\n로그인 페이지로 이동하시겠습니까?')) {
+              window.location.href = '/login';
+            }
+            return;
+          }
+          setIsOpen(prev => !prev);
+        }}
         className="relative p-2 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition-all cursor-pointer flex items-center justify-center group"
-        title="알림 센터"
-        aria-label="알림 센터"
+        title={currentUser ? '알림 센터' : '알림 센터 (로그인 후 이용 가능)'}
+        aria-label={currentUser ? '알림 센터' : '알림 센터 (로그인 후 이용 가능)'}
       >
         <Bell className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-        {unreadCount > 0 && (
+        {currentUser && unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white shadow-xs animate-pulse">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>

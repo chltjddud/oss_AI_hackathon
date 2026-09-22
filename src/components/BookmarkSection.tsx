@@ -14,7 +14,9 @@ import {
   ArrowRight,
   CheckCircle2,
   HelpCircle,
-  Bot
+  Bot,
+  LogIn,
+  Lock
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AiSummaryModal from '@/components/AiSummaryModal';
@@ -48,6 +50,7 @@ export default function BookmarkSection({
 }: BookmarkSectionProps) {
   const [savedPolicyIds, setSavedPolicyIds] = useState<string[]>([]);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -110,63 +113,96 @@ export default function BookmarkSection({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    try {
-      const raw = localStorage.getItem('suncheon_saved_policies');
-      if (raw) {
-        setSavedPolicyIds(JSON.parse(raw));
-      }
+    const checkAuthAndSync = async () => {
+      try {
+        let email: string | null = null;
+        const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
+        if (authStr) {
+          try {
+            const parsed = JSON.parse(authStr);
+            email = parsed.email || null;
+          } catch {}
+        }
 
-      // Check session
-      const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
-      let email: string | null = null;
-      if (authStr) {
-        try {
-          const parsed = JSON.parse(authStr);
-          email = parsed.email || null;
-          setCurrentUserEmail(email);
-        } catch {}
-      }
-
-      if (!email) {
-        supabase.auth.getUser().then(({ data }) => {
+        if (!email) {
+          const { data } = await supabase.auth.getUser();
           if (data?.user?.email) {
             email = data.user.email;
-            setCurrentUserEmail(email);
           }
-        });
-      }
+        }
 
-      // Sync from Supabase DB
-      const targetEmail = email || currentUserEmail;
-      if (targetEmail) {
-        supabase
+        setCurrentUserEmail(email);
+
+        if (!email) {
+          setSavedPolicyIds([]);
+          setIsAuthChecking(false);
+          return;
+        }
+
+        const userKey = `suncheon_saved_policies_${email}`;
+        let initialIds: string[] = [];
+        const rawUser = localStorage.getItem(userKey);
+        const rawGlobal = localStorage.getItem('suncheon_saved_policies');
+        if (rawUser) {
+          try { initialIds = JSON.parse(rawUser); } catch {}
+        } else if (rawGlobal) {
+          try { initialIds = JSON.parse(rawGlobal); } catch {}
+        }
+        setSavedPolicyIds(initialIds);
+
+        // Sync from Supabase DB
+        const { data: dbRows, error } = await supabase
           .from('saved_policies')
           .select('policy_id')
-          .eq('user_email', targetEmail)
-          .then(({ data, error }) => {
-            if (!error && data && data.length > 0) {
-              const dbIds = data.map((d: any) => d.policy_id);
-              setSavedPolicyIds(prev => {
-                const merged = Array.from(new Set([...prev, ...dbIds]));
-                localStorage.setItem('suncheon_saved_policies', JSON.stringify(merged));
-                return merged;
-              });
-            }
-          });
+          .eq('user_email', email);
+
+        if (!error && dbRows && dbRows.length > 0) {
+          const dbIds = dbRows.map((d: any) => d.policy_id);
+          const merged = Array.from(new Set([...initialIds, ...dbIds]));
+          setSavedPolicyIds(merged);
+          localStorage.setItem(userKey, JSON.stringify(merged));
+          localStorage.setItem('suncheon_saved_policies', JSON.stringify(merged));
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsAuthChecking(false);
       }
-    } catch (err) {
-      console.error(err);
-    }
+    };
+
+    checkAuthAndSync();
 
     const handleBookmarkChanged = () => {
       try {
-        const raw = localStorage.getItem('suncheon_saved_policies');
-        if (raw) setSavedPolicyIds(JSON.parse(raw));
+        const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
+        let email: string | null = null;
+        if (authStr) {
+          try {
+            email = JSON.parse(authStr).email || null;
+          } catch {}
+        }
+        if (email) {
+          const userKey = `suncheon_saved_policies_${email}`;
+          const raw = localStorage.getItem(userKey) || localStorage.getItem('suncheon_saved_policies');
+          if (raw) setSavedPolicyIds(JSON.parse(raw));
+        } else {
+          setSavedPolicyIds([]);
+        }
       } catch {}
     };
 
+    const handleAuthChanged = () => {
+      checkAuthAndSync();
+    };
+
     window.addEventListener('bookmark_changed', handleBookmarkChanged);
-    return () => window.removeEventListener('bookmark_changed', handleBookmarkChanged);
+    window.addEventListener('auth_state_changed', handleAuthChanged);
+    window.addEventListener('storage', handleBookmarkChanged);
+    return () => {
+      window.removeEventListener('bookmark_changed', handleBookmarkChanged);
+      window.removeEventListener('auth_state_changed', handleAuthChanged);
+      window.removeEventListener('storage', handleBookmarkChanged);
+    };
   }, []);
 
   const handleRemovePolicy = async (policyId: string) => {
@@ -174,20 +210,24 @@ export default function BookmarkSection({
     setSavedPolicyIds(next);
 
     if (typeof window !== 'undefined') {
+      if (currentUserEmail) {
+        localStorage.setItem(`suncheon_saved_policies_${currentUserEmail}`, JSON.stringify(next));
+      }
       localStorage.setItem('suncheon_saved_policies', JSON.stringify(next));
       window.dispatchEvent(new Event('bookmark_changed'));
     }
 
     showToast('보관함에서 삭제되었습니다.');
 
-    const targetEmail = currentUserEmail || 'guest@suncheon.kr';
-    try {
-      await supabase
-        .from('saved_policies')
-        .delete()
-        .match({ user_email: targetEmail, policy_id: policyId });
-    } catch (err) {
-      console.warn('Delete from Supabase skipped:', err);
+    if (currentUserEmail) {
+      try {
+        await supabase
+          .from('saved_policies')
+          .delete()
+          .match({ user_email: currentUserEmail, policy_id: policyId });
+      } catch (err) {
+        console.warn('Delete from Supabase skipped:', err);
+      }
     }
   };
 
@@ -272,6 +312,67 @@ export default function BookmarkSection({
       return matchesSearch && matchesCat;
     });
   }, [savedPoliciesList, searchQuery, selectedCategory]);
+
+  if (isAuthChecking) {
+    return (
+      <div className="w-full py-28 flex flex-col items-center justify-center text-slate-500">
+        <div className="w-9 h-9 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-sm font-semibold">보관함 정보를 안전하게 불러오는 중입니다...</p>
+      </div>
+    );
+  }
+
+  if (!currentUserEmail) {
+    return (
+      <div className="w-full text-slate-800">
+        <div className="mb-8 text-center py-10 bg-white rounded-3xl shadow-xs border border-amber-200/80 relative overflow-hidden">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold mb-3 border border-amber-300/70">
+            <Bookmark className="w-3.5 h-3.5 fill-amber-600 text-amber-600" />
+            <span>관심 혜택 보관함</span>
+          </div>
+
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-3 text-slate-900">
+            내 <span className="text-amber-600">보관함</span>
+          </h1>
+
+          <p className="text-sm sm:text-base text-slate-500 max-w-xl mx-auto px-4 leading-relaxed">
+            관심 있는 순천시 지원 정책과 혜택을 한곳에서 모아보고 언제든지 신청 일정을 확인하세요.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-10 sm:p-14 text-center shadow-xs max-w-xl mx-auto my-8">
+          <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-5 border border-amber-200">
+            <Lock className="w-8 h-8" />
+          </div>
+
+          <h3 className="text-2xl font-bold text-slate-900 mb-2">
+            로그인이 필요한 서비스입니다
+          </h3>
+          <p className="text-sm sm:text-base text-slate-500 max-w-md mx-auto mb-8 leading-relaxed">
+            순천시 맞춤 복지 및 혜택 보관함은 로그인 후 이용하실 수 있습니다.<br />
+            로그인하시면 기기가 바뀌어도 보관함 목록이 안전하게 유지됩니다.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/login?redirect=/bookmarks"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all cursor-pointer"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>로그인 후 이용하기</span>
+            </Link>
+
+            <Link
+              href="/"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-all"
+            >
+              <span>홈으로 돌아가기</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full text-slate-800">

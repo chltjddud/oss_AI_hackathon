@@ -85,14 +85,37 @@ export function calculateDDay(targetDate: Date): number {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
+function getUserStorageKey(baseKey: string, userEmail?: string): string {
+  if (userEmail) return `${baseKey}_${userEmail.trim().toLowerCase()}`;
+  if (typeof window !== 'undefined') {
+    const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
+    if (authStr) {
+      try {
+        const u = JSON.parse(authStr);
+        if (u.email) return `${baseKey}_${u.email.trim().toLowerCase()}`;
+      } catch {}
+    }
+  }
+  return baseKey;
+}
+
 // Get interest keywords
-export function getInterestKeywords(): string[] {
+export function getInterestKeywords(userEmail?: string): string[] {
   if (typeof window === 'undefined') return DEFAULT_KEYWORDS;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_KEYWORDS);
+    const key = getUserStorageKey(STORAGE_KEY_KEYWORDS, userEmail);
+    const raw = localStorage.getItem(key);
     if (raw !== null) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
+    }
+    // Check if active user profile has interests
+    const authStr = localStorage.getItem('suncheon_auth_session');
+    if (authStr) {
+      const u = JSON.parse(authStr);
+      if (Array.isArray(u.interests) && u.interests.length > 0) {
+        return u.interests;
+      }
     }
   } catch (err) {
     console.error('Failed to load interest keywords:', err);
@@ -101,20 +124,22 @@ export function getInterestKeywords(): string[] {
 }
 
 // Save interest keywords
-export function saveInterestKeywords(keywords: string[]): void {
+export function saveInterestKeywords(keywords: string[], userEmail?: string): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY_KEYWORDS, JSON.stringify(keywords));
+    const key = getUserStorageKey(STORAGE_KEY_KEYWORDS, userEmail);
+    localStorage.setItem(key, JSON.stringify(keywords));
   } catch (err) {
     console.error('Failed to save interest keywords:', err);
   }
 }
 
 // Get stored notifications
-export function getStoredNotifications(): NotificationItem[] {
+export function getStoredNotifications(userEmail?: string): NotificationItem[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_NOTIFICATIONS);
+    const key = getUserStorageKey(STORAGE_KEY_NOTIFICATIONS, userEmail);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
@@ -126,42 +151,43 @@ export function getStoredNotifications(): NotificationItem[] {
 }
 
 // Save stored notifications
-export function saveStoredNotifications(items: NotificationItem[]): void {
+export function saveStoredNotifications(items: NotificationItem[], userEmail?: string): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY_NOTIFICATIONS, JSON.stringify(items));
+    const key = getUserStorageKey(STORAGE_KEY_NOTIFICATIONS, userEmail);
+    localStorage.setItem(key, JSON.stringify(items));
   } catch (err) {
     console.error('Failed to save notifications:', err);
   }
 }
 
 // Mark single notification as read
-export function markNotificationAsRead(id: string): NotificationItem[] {
-  const current = getStoredNotifications();
+export function markNotificationAsRead(id: string, userEmail?: string): NotificationItem[] {
+  const current = getStoredNotifications(userEmail);
   const updated = current.map(item => item.id === id ? { ...item, isRead: true } : item);
-  saveStoredNotifications(updated);
+  saveStoredNotifications(updated, userEmail);
   return updated;
 }
 
 // Mark all as read
-export function markAllNotificationsAsRead(): NotificationItem[] {
-  const current = getStoredNotifications();
+export function markAllNotificationsAsRead(userEmail?: string): NotificationItem[] {
+  const current = getStoredNotifications(userEmail);
   const updated = current.map(item => ({ ...item, isRead: true }));
-  saveStoredNotifications(updated);
+  saveStoredNotifications(updated, userEmail);
   return updated;
 }
 
 // Delete single notification
-export function deleteStoredNotification(id: string): NotificationItem[] {
-  const current = getStoredNotifications();
+export function deleteStoredNotification(id: string, userEmail?: string): NotificationItem[] {
+  const current = getStoredNotifications(userEmail);
   const updated = current.filter(item => item.id !== id);
-  saveStoredNotifications(updated);
+  saveStoredNotifications(updated, userEmail);
   return updated;
 }
 
 // Clear all notifications
-export function clearAllStoredNotifications(): void {
-  saveStoredNotifications([]);
+export function clearAllStoredNotifications(userEmail?: string): void {
+  saveStoredNotifications([], userEmail);
 }
 
 export interface SyncCandidatePolicy {
@@ -196,9 +222,10 @@ export function syncNotifications(
   allPolicies: SyncCandidatePolicy[],
   allNotices: SyncCandidateNotice[],
   savedIds: string[],
-  keywords: string[]
+  keywords: string[],
+  userEmail?: string
 ): NotificationItem[] {
-  const existing = getStoredNotifications();
+  const existing = getStoredNotifications(userEmail);
   const existingMap = new Map<string, NotificationItem>(existing.map(n => [n.id, n]));
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -309,6 +336,6 @@ export function syncNotifications(
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 50);
 
-  saveStoredNotifications(sorted);
+  saveStoredNotifications(sorted, userEmail);
   return sorted;
 }

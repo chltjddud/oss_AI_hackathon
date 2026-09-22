@@ -16,10 +16,22 @@ export default function Navbar() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const updateSavedCount = () => {
+    const updateSavedCount = (activeUser?: any) => {
       if (typeof window !== 'undefined') {
         try {
-          const raw = localStorage.getItem('suncheon_saved_policies');
+          const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
+          let email = activeUser?.email;
+          if (!email && authStr) {
+            try {
+              email = JSON.parse(authStr).email;
+            } catch {}
+          }
+          if (!email) {
+            setSavedCount(0);
+            return;
+          }
+          const userKey = `suncheon_saved_policies_${email}`;
+          const raw = localStorage.getItem(userKey) || localStorage.getItem('suncheon_saved_policies');
           if (raw) {
             const list = JSON.parse(raw);
             setSavedCount(Array.isArray(list) ? list.length : 0);
@@ -32,26 +44,28 @@ export default function Navbar() {
       }
     };
 
-    updateSavedCount();
-
     const checkUser = () => {
       supabase.auth.getUser().then(({ data }) => {
         if (data.user) {
           setUser(data.user);
+          updateSavedCount(data.user);
         } else if (typeof window !== 'undefined') {
           const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
           if (authStr) {
             try {
-              setUser(JSON.parse(authStr));
+              const parsed = JSON.parse(authStr);
+              setUser(parsed);
+              updateSavedCount(parsed);
             } catch {
               setUser(null);
+              setSavedCount(0);
             }
           } else {
             setUser(null);
+            setSavedCount(0);
           }
         }
       });
-      updateSavedCount();
     };
 
     checkUser();
@@ -59,10 +73,10 @@ export default function Navbar() {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
+        updateSavedCount(session.user);
       } else {
         checkUser();
       }
-      updateSavedCount();
     });
 
     const handleCustomAuth = () => checkUser();
@@ -100,8 +114,12 @@ export default function Navbar() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('suncheon_auth_session');
       localStorage.removeItem('suncheon_guest_user');
+      localStorage.removeItem('suncheon_saved_policies');
+      window.dispatchEvent(new Event('auth_state_changed'));
+      window.dispatchEvent(new Event('bookmark_changed'));
     }
     setUser(null);
+    setSavedCount(0);
   };
 
   const navLinks = [
@@ -186,12 +204,20 @@ export default function Navbar() {
           {/* 내 보관함 버튼 (전용 보관함 페이지로 이동) */}
           <Link
             href="/bookmarks"
+            onClick={(e) => {
+              if (!user) {
+                e.preventDefault();
+                if (window.confirm('로그인 후 내 보관함을 이용하실 수 있습니다.\n로그인 페이지로 이동하시겠습니까?')) {
+                  window.location.href = '/login?redirect=/bookmarks';
+                }
+              }
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300/80 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold transition-all shadow-2xs cursor-pointer group"
-            title="내가 보관한 순천시 맞춤 혜택 목록"
+            title={user ? '내가 보관한 순천시 맞춤 혜택 목록' : '내 보관함 (로그인 후 이용 가능)'}
           >
             <Bookmark className="w-3.5 h-3.5 fill-amber-500 text-amber-500 group-hover:scale-110 transition-transform" />
             <span>내 보관함</span>
-            {savedCount > 0 && (
+            {user && savedCount > 0 && (
               <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px] font-extrabold shadow-2xs">
                 {savedCount}
               </span>
@@ -199,7 +225,7 @@ export default function Navbar() {
           </Link>
 
           {/* 알림 센터 (D-Day 마감 임박 & 키워드 공고) */}
-          <NotificationCenter />
+          <NotificationCenter user={user} />
 
           {/* Auth Button & Dropdown */}
           {user ? (

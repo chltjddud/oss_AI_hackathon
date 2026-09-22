@@ -89,6 +89,7 @@ export default function PolicySection({
         setSavedPolicyIds(prev => {
           const combined = Array.from(new Set([...prev, ...dbIds]));
           if (typeof window !== 'undefined') {
+            localStorage.setItem(`suncheon_saved_policies_${email}`, JSON.stringify(combined));
             localStorage.setItem('suncheon_saved_policies', JSON.stringify(combined));
           }
           return combined;
@@ -129,9 +130,12 @@ export default function PolicySection({
 
     // 2. Load from localStorage for immediate display
     try {
-      const raw = localStorage.getItem('suncheon_saved_policies');
+      const userKey = email ? `suncheon_saved_policies_${email}` : null;
+      const raw = userKey ? (localStorage.getItem(userKey) || localStorage.getItem('suncheon_saved_policies')) : null;
       if (raw) {
         setSavedPolicyIds(JSON.parse(raw));
+      } else {
+        setSavedPolicyIds([]);
       }
 
       const params = new URLSearchParams(window.location.search);
@@ -144,11 +148,19 @@ export default function PolicySection({
   }, []);
 
   const toggleSavePolicy = async (policy: UnifiedPolicy) => {
+    if (!currentUserEmail) {
+      if (window.confirm('로그인 후 보관함 기능을 이용하실 수 있습니다.\n로그인 페이지로 이동하시겠습니까?')) {
+        window.location.href = '/login?redirect=/policies';
+      }
+      return;
+    }
+
     const id = policy.id;
     const wasSaved = savedPolicyIds.includes(id);
     const next = wasSaved ? savedPolicyIds.filter(item => item !== id) : [...savedPolicyIds, id];
     setSavedPolicyIds(next);
     if (typeof window !== 'undefined') {
+      localStorage.setItem(`suncheon_saved_policies_${currentUserEmail}`, JSON.stringify(next));
       localStorage.setItem('suncheon_saved_policies', JSON.stringify(next));
       window.dispatchEvent(new Event('bookmark_changed'));
     }
@@ -156,7 +168,7 @@ export default function PolicySection({
     showToast(wasSaved ? '보관함에서 삭제되었습니다.' : '혜택 보관함에 저장되었습니다.');
 
     // Sync to Supabase DB if logged in
-    const targetEmail = currentUserEmail || 'guest@suncheon.kr';
+    const targetEmail = currentUserEmail;
     try {
       if (wasSaved) {
         await supabase

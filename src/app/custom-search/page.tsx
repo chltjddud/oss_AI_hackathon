@@ -96,16 +96,25 @@ export default function CustomSearchPage() {
     if (typeof window === 'undefined') return;
 
     try {
-      const raw = localStorage.getItem('suncheon_saved_policies');
-      if (raw) setSavedPolicyIds(JSON.parse(raw));
-
       const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
+      let email: string | null = null;
       if (authStr) {
         const parsed = JSON.parse(authStr);
-        if (parsed.email) setCurrentUserEmail(parsed.email);
+        if (parsed.email) email = parsed.email;
+      }
+      if (email) {
+        setCurrentUserEmail(email);
+        const userKey = `suncheon_saved_policies_${email}`;
+        const raw = localStorage.getItem(userKey) || localStorage.getItem('suncheon_saved_policies');
+        if (raw) setSavedPolicyIds(JSON.parse(raw));
       } else {
         supabase.auth.getUser().then(({ data }) => {
-          if (data?.user?.email) setCurrentUserEmail(data.user.email);
+          if (data?.user?.email) {
+            setCurrentUserEmail(data.user.email);
+            const userKey = `suncheon_saved_policies_${data.user.email}`;
+            const raw = localStorage.getItem(userKey) || localStorage.getItem('suncheon_saved_policies');
+            if (raw) setSavedPolicyIds(JSON.parse(raw));
+          }
         });
       }
     } catch (err) {
@@ -114,19 +123,27 @@ export default function CustomSearchPage() {
   }, []);
 
   const toggleSavePolicy = async (policy: MatchedPolicy) => {
+    if (!currentUserEmail) {
+      if (window.confirm('로그인 후 보관함 기능을 이용하실 수 있습니다.\n로그인 페이지로 이동하시겠습니까?')) {
+        window.location.href = '/login?redirect=/custom-search';
+      }
+      return;
+    }
+
     const id = policy.id;
     const wasSaved = savedPolicyIds.includes(id);
     const next = wasSaved ? savedPolicyIds.filter(item => item !== id) : [...savedPolicyIds, id];
     setSavedPolicyIds(next);
 
     if (typeof window !== 'undefined') {
+      localStorage.setItem(`suncheon_saved_policies_${currentUserEmail}`, JSON.stringify(next));
       localStorage.setItem('suncheon_saved_policies', JSON.stringify(next));
       window.dispatchEvent(new Event('bookmark_changed'));
     }
 
     showToast(wasSaved ? '보관함에서 삭제되었습니다.' : '내 보관함에 추가되었습니다.');
 
-    const targetEmail = currentUserEmail || 'guest@suncheon.kr';
+    const targetEmail = currentUserEmail;
     try {
       if (wasSaved) {
         await supabase.from('saved_policies').delete().match({ user_email: targetEmail, policy_id: id });
