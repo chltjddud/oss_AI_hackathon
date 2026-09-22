@@ -260,69 +260,80 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Policies Sync API
-    if (pathname === '/policies/sync' && (req.method === 'POST' || req.method === 'GET')) {
+    if (pathname === '/policies/sync') {
       const [crawled, applicable] = await Promise.all([
         getCrawledData(false),
         fetchSuncheonApplicableBenefits()
       ]);
 
-      const policiesToInsert: Array<{
-        title: string;
-        category: string;
-        org: string;
-        dept: string;
-        target: string;
-        description: string;
-        url: string;
-        deadline: string | null;
-        region: string;
-      }> = [];
-
-      (crawled.welfare || []).forEach(item => {
-        policiesToInsert.push({
-          title: item.title,
-          category: '순천맞춤복지',
-          org: item.source || '순천시',
-          dept: item.dept || '',
-          target: item.dept ? `${item.dept} 대상자` : '순천시민',
-          description: item.reason || '',
-          url: item.link || '',
-          deadline: null,
-          region: 'suncheon'
-        });
-      });
-
-      applicable.forEach(item => {
-        policiesToInsert.push({
-          title: item.title,
-          category: item.category || '공공복지',
-          org: item.org || '정부/지자체',
-          dept: item.dept || '',
-          target: item.target || '요건 충족 순천시민/국민',
-          description: item.description || '',
-          url: item.url || '',
-          deadline: item.deadline,
-          region: item.scope
-        });
-      });
-
-      const { data, error } = await supabase
-        .from('policies')
-        .insert(policiesToInsert);
-
-      if (error) {
-        return sendJson(res, 400, {
-          success: false,
-          message: error.message,
-          hint: 'Supabase SQL 에디터에서 supabase_schema.sql을 먼저 실행해 주세요.'
+      if (req.method === 'GET') {
+        return sendJson(res, 200, {
+          success: true,
+          total: (crawled.welfare?.length || 0) + applicable.length,
+          policies: applicable,
+          welfare: crawled.welfare || []
         });
       }
 
-      return sendJson(res, 200, {
-        success: true,
-        insertedCount: policiesToInsert.length,
-        data
-      });
+      if (req.method === 'POST') {
+        const policiesToInsert: Array<{
+          title: string;
+          category: string;
+          org: string;
+          dept: string;
+          target: string;
+          description: string;
+          url: string;
+          deadline: string | null;
+          region: string;
+        }> = [];
+
+        (crawled.welfare || []).forEach(item => {
+          policiesToInsert.push({
+            title: item.title,
+            category: '순천맞춤복지',
+            org: item.source || '순천시',
+            dept: item.dept || '',
+            target: item.dept ? `${item.dept} 대상자` : '순천시민',
+            description: item.reason || '',
+            url: item.link || '',
+            deadline: null,
+            region: 'suncheon'
+          });
+        });
+
+        applicable.forEach(item => {
+          policiesToInsert.push({
+            title: item.title,
+            category: item.category || '공공복지',
+            org: item.org || '정부/지자체',
+            dept: item.dept || '',
+            target: item.target || '요건 충족 순천시민/국민',
+            description: item.description || '',
+            url: item.url || '',
+            deadline: item.deadline,
+            region: item.scope
+          });
+        });
+
+        const { data, error } = await supabase
+          .from('policies')
+          .insert(policiesToInsert);
+
+        if (error) {
+          return sendJson(res, 400, {
+            success: false,
+            message: error.message,
+            hint: 'Supabase SQL 에디터에서 supabase_schema.sql을 먼저 실행해 주세요.'
+          });
+        }
+
+        return sendJson(res, 200, {
+          success: true,
+          insertedCount: policiesToInsert.length,
+          data
+        });
+      }
     }
 
     // Fallback 404

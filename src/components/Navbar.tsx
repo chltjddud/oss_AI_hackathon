@@ -45,27 +45,23 @@ export default function Navbar() {
     };
 
     const checkUser = () => {
+      if (typeof window !== 'undefined') {
+        const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
+        if (authStr) {
+          try {
+            const parsed = JSON.parse(authStr);
+            setUser(parsed);
+            updateSavedCount(parsed);
+          } catch {}
+        }
+      }
+
       supabase.auth.getUser().then(({ data }) => {
         if (data.user) {
           setUser(data.user);
           updateSavedCount(data.user);
-        } else if (typeof window !== 'undefined') {
-          const authStr = localStorage.getItem('suncheon_auth_session') || localStorage.getItem('suncheon_guest_user');
-          if (authStr) {
-            try {
-              const parsed = JSON.parse(authStr);
-              setUser(parsed);
-              updateSavedCount(parsed);
-            } catch {
-              setUser(null);
-              setSavedCount(0);
-            }
-          } else {
-            setUser(null);
-            setSavedCount(0);
-          }
         }
-      });
+      }).catch(() => {});
     };
 
     checkUser();

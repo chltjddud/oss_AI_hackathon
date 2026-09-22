@@ -120,7 +120,8 @@ export async function fetchPublicBenefits(page = 1, perPage = 50, orgFilter = '�
 
 let cachedBenefits: ApplicablePolicy[] | null = null;
 let lastBenefitsFetchTime = 0;
-const BENEFITS_CACHE_TTL_MS = 1000 * 60 * 15; // 15 minutes cache
+const BENEFITS_CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes cache
+let inFlightBenefitsPromise: Promise<ApplicablePolicy[]> | null = null;
 
 /**
  * 순천시민(청년, 일반 시민 포함)이 신청 가능한 모든 정책을 종합 수집하는 통합 함수
@@ -135,11 +136,17 @@ export async function fetchSuncheonApplicableBenefits(forceRefresh = false): Pro
   if (!forceRefresh && cachedBenefits && now - lastBenefitsFetchTime < BENEFITS_CACHE_TTL_MS) {
     return cachedBenefits;
   }
+  if (!forceRefresh && inFlightBenefitsPromise) {
+    return inFlightBenefitsPromise;
+  }
 
   const apiKey = process.env.PUBLIC_DATA_API_KEY;
   if (!apiKey) {
     return cachedBenefits || [];
   }
+
+  inFlightBenefitsPromise = (async () => {
+    try {
 
   const fetchParam = async (param: string) => {
     try {
@@ -289,8 +296,14 @@ export async function fetchSuncheonApplicableBenefits(forceRefresh = false): Pro
     }
   });
 
-  const result = Array.from(policyMap.values());
-  cachedBenefits = result;
-  lastBenefitsFetchTime = now;
-  return result;
+    const result = Array.from(policyMap.values());
+    cachedBenefits = result;
+    lastBenefitsFetchTime = now;
+    return result;
+  } finally {
+    inFlightBenefitsPromise = null;
+  }
+})();
+
+  return inFlightBenefitsPromise;
 }

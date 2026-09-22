@@ -32,6 +32,12 @@ interface NotificationCenterProps {
   user?: any;
 }
 
+let globalCachedPolicies: any[] | null = null;
+let globalCachedNotices: any[] | null = null;
+let lastSyncTimestamp = 0;
+let inFlightSyncPromise: Promise<void> | null = null;
+const SYNC_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
 export default function NotificationCenter({ user: propUser }: NotificationCenterProps) {
   const [mounted, setMounted] = useState(false);
   const [activeUser, setActiveUser] = useState<any>(propUser || null);
@@ -89,36 +95,93 @@ export default function NotificationCenter({ user: propUser }: NotificationCente
       const savedIdsRaw = (userSavedKey && localStorage.getItem(userSavedKey)) || localStorage.getItem('suncheon_saved_policies');
       const savedIds: string[] = savedIdsRaw ? JSON.parse(savedIdsRaw) : [];
 
-      if (cachedPoliciesRef.current.length === 0 || cachedNoticesRef.current.length === 0) {
-        const [crawlRes, policiesRes] = await Promise.allSettled([
-          fetch('/api/crawl?category=all').then(r => r.json()),
-          fetch('/api/policies/sync').then(r => r.json())
-        ]);
-
-        const crawlData = crawlRes.status === 'fulfilled' ? crawlRes.value : null;
-        const policiesData = policiesRes.status === 'fulfilled' ? policiesRes.value : null;
-
-        cachedNoticesRef.current = [
-          ...(crawlData?.notice || []),
-          ...(crawlData?.welfare || [])
-        ];
-
-        cachedPoliciesRef.current = [
-          ...(policiesData?.policies || []),
-          ...(policiesData?.welfare || []),
-          ...(crawlData?.welfare || [])
-        ];
+      // 1. Check memory or sessionStorage cache first (instant 0ms)
+      if (!globalCachedPolicies || !globalCachedNotices) {
+        try {
+          const sNotices = sessionStorage.getItem('suncheon_cached_notices');
+          const sPolicies = sessionStorage.getItem('suncheon_cached_policies');
+          if (sNotices && sPolicies) {
+            globalCachedNotices = JSON.parse(sNotices);
+            globalCachedPolicies = JSON.parse(sPolicies);
+          }
+        } catch {}
       }
 
-      const activeKw = targetKw || (keywordsRef.current.length > 0 ? keywordsRef.current : getInterestKeywords(email));
-      const updated = syncNotifications(
-        cachedPoliciesRef.current,
-        cachedNoticesRef.current,
-        savedIds,
-        activeKw,
-        email
-      );
-      setNotifications(updated);
+      if (globalCachedPolicies && globalCachedNotices && globalCachedPolicies.length > 0) {
+        cachedPoliciesRef.current = globalCachedPolicies;
+        cachedNoticesRef.current = globalCachedNotices;
+        const activeKw = targetKw || (keywordsRef.current.length > 0 ? keywordsRef.current : getInterestKeywords(email));
+        const updated = syncNotifications(
+          globalCachedPolicies,
+          globalCachedNotices,
+          savedIds,
+          activeKw,
+          email
+        );
+        setNotifications(updated);
+
+        // If cache is fresh, skip background fetch
+        if (Date.now() - lastSyncTimestamp < SYNC_CACHE_TTL) {
+          return;
+        }
+      }
+
+      // 2. Fetch in background without blocking
+      if (inFlightSyncPromise) {
+        await inFlightSyncPromise;
+        return;
+      }
+
+      inFlightSyncPromise = (async () => {
+        try {
+          const [crawlRes, policiesRes] = await Promise.allSettled([
+            fetch('/api/crawl?category=all').then(r => r.json()),
+            fetch('/api/policies/sync').then(r => r.json())
+          ]);
+
+          const crawlData = crawlRes.status === 'fulfilled' ? crawlRes.value : null;
+          const policiesData = policiesRes.status === 'fulfilled' ? policiesRes.value : null;
+
+          const newNotices = [
+            ...(crawlData?.notice || []),
+            ...(crawlData?.welfare || [])
+          ];
+
+          const newPolicies = [
+            ...(policiesData?.policies || []),
+            ...(policiesData?.welfare || []),
+            ...(crawlData?.welfare || [])
+          ];
+
+          if (newNotices.length > 0) {
+            globalCachedNotices = newNotices;
+            cachedNoticesRef.current = newNotices;
+            try { sessionStorage.setItem('suncheon_cached_notices', JSON.stringify(newNotices)); } catch {}
+          }
+
+          if (newPolicies.length > 0) {
+            globalCachedPolicies = newPolicies;
+            cachedPoliciesRef.current = newPolicies;
+            try { sessionStorage.setItem('suncheon_cached_policies', JSON.stringify(newPolicies)); } catch {}
+          }
+
+          lastSyncTimestamp = Date.now();
+
+          const activeKw = targetKw || (keywordsRef.current.length > 0 ? keywordsRef.current : getInterestKeywords(email));
+          const updated = syncNotifications(
+            cachedPoliciesRef.current.length > 0 ? cachedPoliciesRef.current : (globalCachedPolicies || []),
+            cachedNoticesRef.current.length > 0 ? cachedNoticesRef.current : (globalCachedNotices || []),
+            savedIds,
+            activeKw,
+            email
+          );
+          setNotifications(updated);
+        } finally {
+          inFlightSyncPromise = null;
+        }
+      })();
+
+      await inFlightSyncPromise;
     } catch (err) {
       console.error('Failed to run notification sync:', err);
     }
