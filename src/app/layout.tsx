@@ -22,13 +22,17 @@ export const metadata: Metadata = {
   },
 };
 
+import Navbar from '@/components/Navbar';
 import AiChatWidget from '@/components/AiChatWidget';
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ko" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="min-h-screen pb-16 md:pb-0">
-        {children}
+      <body className="min-h-screen flex flex-col pb-16 md:pb-0">
+        <Navbar />
+        <div className="flex-1 flex flex-col w-full">
+          {children}
+        </div>
         <AiChatWidget />
       </body>
     </html>

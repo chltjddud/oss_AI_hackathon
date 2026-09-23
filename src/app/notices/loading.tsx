@@ -1,13 +1,11 @@
 import React from 'react';
-import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Loader2 } from 'lucide-react';
 
 export default function NoticesLoading() {
   return (
-    <div className="min-h-screen flex flex-col bg-emerald-50/40 text-slate-800">
-      <Navbar />
-      <main className="flex-1 container mx-auto px-4 sm:px-6 py-8">
+    <div className="flex-1 flex flex-col bg-emerald-50/40 text-slate-800">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* Hero Header Skeleton */}
         <div className="mb-8 text-center py-10 bg-white rounded-3xl shadow-xs border border-emerald-100 animate-pulse">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-3">

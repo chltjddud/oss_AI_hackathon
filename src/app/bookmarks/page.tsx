@@ -1,7 +1,6 @@
 import React from 'react';
 import { fetchSuncheonApplicableBenefits } from '@/lib/api';
 import { getMergedWelfare } from '@/lib/crawler';
-import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import BookmarkSection from '@/components/BookmarkSection';
 
@@ -14,9 +13,8 @@ export default async function BookmarksPage() {
   ]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-amber-50/30 via-white to-slate-50 text-slate-800">
-      <Navbar />
-      <main className="flex-1 container mx-auto px-4 sm:px-6 py-8 max-w-6xl">
+    <div className="flex-1 flex flex-col bg-gradient-to-b from-amber-50/30 via-white to-slate-50 text-slate-800">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-8">
         <BookmarkSection
           initialWelfare={welfare}
           applicablePolicies={applicablePolicies}

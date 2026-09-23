@@ -1,15 +1,14 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import SuncheonWindCanvas from '@/components/SuncheonWindCanvas';
 import { Bell, Layers, ArrowRight, Sparkles } from 'lucide-react';
 
 export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-emerald-50/40 via-white to-slate-50 text-slate-800 relative overflow-hidden">
-      <Navbar />
+    <div className="flex-1 flex flex-col bg-gradient-to-b from-emerald-50/40 via-white to-slate-50 text-slate-800 relative overflow-x-clip">
+
 
       <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-16 relative">
         <SuncheonWindCanvas />

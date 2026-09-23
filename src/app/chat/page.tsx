@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import {
   Bot,
@@ -162,8 +161,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
-      <Navbar />
+    <div className="flex-1 flex flex-col bg-slate-50 text-slate-800">
 
       <main className="flex-1 container mx-auto px-4 sm:px-6 py-6 max-w-6xl flex flex-col">
         {/* Page Title Bar */}

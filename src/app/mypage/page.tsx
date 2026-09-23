@@ -23,7 +23,6 @@ import {
   LogIn
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { getInterestKeywords, saveInterestKeywords, PRESET_KEYWORDS } from '@/lib/notifications';
 
@@ -414,8 +413,7 @@ export default function MyPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
-        <Navbar />
+      <div className="flex-1 flex flex-col bg-slate-50 text-slate-800">
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center p-8">
             <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -430,8 +428,7 @@ export default function MyPage() {
   // 비로그인 상태일 때
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
-        <Navbar />
+      <div className="flex-1 flex flex-col bg-slate-50 text-slate-800">
         <main className="flex-1 flex items-center justify-center px-4 py-16">
           <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-sm p-8 text-center">
             <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-5 border border-emerald-100">
@@ -464,9 +461,7 @@ export default function MyPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
-      <Navbar />
-
+    <div className="flex-1 flex flex-col bg-slate-50 text-slate-800">
       <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
         {/* 상단 프로필 헤더 */}
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-2xs mb-8">

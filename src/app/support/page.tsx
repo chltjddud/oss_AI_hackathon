@@ -1,5 +1,4 @@
 import React from 'react';
-import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import CitizenRequestSection from '@/components/CitizenRequestSection';
 
@@ -10,9 +9,8 @@ export const metadata = {
 
 export default function SupportPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
-      <Navbar />
-      <main className="flex-1 container mx-auto px-4 sm:px-6 py-8">
+    <div className="flex-1 flex flex-col bg-slate-50 text-slate-800">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         <CitizenRequestSection />
       </main>
       <Footer />

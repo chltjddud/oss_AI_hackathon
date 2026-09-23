@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import AiSummaryModal from '@/components/AiSummaryModal';
 import AiLoadingCanvas from '@/components/AiLoadingCanvas';
@@ -284,8 +283,7 @@ export default function CustomSearchPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-emerald-50/40 via-white to-slate-50 text-slate-800">
-      <Navbar />
+    <div className="flex-1 flex flex-col bg-gradient-to-b from-emerald-50/40 via-white to-slate-50 text-slate-800">
 
       <main className="flex-1 container mx-auto px-4 sm:px-6 py-10 max-w-5xl">
         {/* Header Badge & Title */}
