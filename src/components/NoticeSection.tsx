@@ -209,7 +209,7 @@ export default function NoticeSection({
       {/* Status Bar */}
       <div className="flex items-center justify-between mb-4 px-1 text-xs sm:text-sm text-slate-500">
         <div>
-          총 <strong className="text-emerald-700 font-bold">{filteredNotices.length}</strong>건의 공지사항 (20개씩 보기)
+          총 <strong className="text-emerald-700 font-bold">{filteredNotices.length}</strong>건의 공지사항
         </div>
         <div>
           업데이트: <span className="font-medium text-slate-700">{updatedTime}</span>

@@ -173,7 +173,7 @@ export default function AiChatWidget() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group border border-emerald-400/40"
+          className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-40 flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group border border-emerald-400/40"
           title="1:1 AI 혜택 상담 챗봇 열기"
           aria-label="1:1 AI 혜택 상담 챗봇"
         >
@@ -191,7 +191,7 @@ export default function AiChatWidget() {
 
       {/* Floating Chat Modal Panel */}
       {isOpen && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[94vw] sm:w-[420px] h-[590px] max-h-[88vh] bg-white rounded-3xl border-2 border-emerald-300/80 shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 text-slate-800 select-none">
+        <div className="fixed bottom-20 md:bottom-6 right-3 sm:right-6 z-50 w-[94vw] sm:w-[420px] h-[580px] max-h-[78vh] sm:max-h-[88vh] bg-white rounded-3xl border-2 border-emerald-300/80 shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 text-slate-800 select-none">
           {/* Header */}
           <div className="px-5 py-3.5 bg-gradient-to-r from-emerald-700 to-teal-800 text-white flex items-center justify-between shadow-xs">
             <div className="flex items-center gap-2.5">
@@ -397,8 +397,8 @@ export default function AiChatWidget() {
                 <Send className="w-4 h-4" />
               </button>
             </form>
-            <div className="mt-1.5 text-[10px] text-slate-400 text-center">
-              순천시 공공 정책 및 실시간 공지사항 150+건 기반 실시간 상담
+            <div className="mt-1.5 text-[10px] text-slate-400 text-center leading-tight">
+              순천시 공공데이터 150+건 기반 | AI 답변은 참고용이며 법적 책임을 지지 않습니다.
             </div>
           </div>
         </div>

@@ -225,6 +225,11 @@ export default function ChatPage() {
               <span className="font-bold block mb-1">안내사항</span>
               순천시청, 청년센터, 문화재단 및 정부 복지 공공데이터 150여 건을 실시간 대조하여 답변합니다. 구체적인 조건은 공고 원문을 확인해 주세요.
             </div>
+
+            <div className="p-4 rounded-3xl bg-amber-50/90 border border-amber-200/90 text-xs text-amber-950 leading-relaxed">
+              <span className="font-bold block mb-1 text-amber-900">법적 책임 고지 및 유의사항</span>
+              본 AI 상담은 공공데이터 안내를 돕는 참고용 서비스이며, 인공지능 특성상 부정확하거나 실수가 있을 수 있습니다. 본 서비스의 답변은 어떠한 법적 효력이나 책임을 지지 않으므로, 정확한 자격 요건 및 신청 절차는 반드시 지자체 및 관계 기관의 공식 공고를 확인하시기 바랍니다.
+            </div>
           </div>
 
           {/* Main Chat Window */}
@@ -387,6 +392,9 @@ export default function ChatPage() {
                   <span className="hidden sm:inline">전송</span>
                 </button>
               </form>
+              <p className="mt-2 text-[11px] text-slate-400 text-center font-medium leading-relaxed">
+                인공지능 모델 특성상 답변에 실수가 있을 수 있으며 어떠한 법적 효력이나 책임을 지지 않습니다. 최종 신청 전 순천시청 공식 공고문을 확인해 주세요.
+              </p>
             </div>
           </div>
         </div>

@@ -608,7 +608,7 @@ export default function PolicySection({
       {/* Result Status Bar */}
       <div className="flex items-center justify-between mb-4 px-1 text-xs sm:text-sm text-slate-500">
         <div>
-          총 <strong className="text-emerald-700 font-bold">{filteredPolicies.length}</strong>건의 지원 정책 (20개씩 보기)
+          총 <strong className="text-emerald-700 font-bold">{filteredPolicies.length}</strong>건의 지원 정책
         </div>
         <div className="flex items-center gap-2">
           <select

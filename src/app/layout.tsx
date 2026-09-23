@@ -27,7 +27,7 @@ import AiChatWidget from '@/components/AiChatWidget';
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ko" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body>
+      <body className="min-h-screen pb-16 md:pb-0">
         {children}
         <AiChatWidget />
       </body>
