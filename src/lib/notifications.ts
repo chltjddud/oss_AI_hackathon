@@ -46,43 +46,57 @@ export const PRESET_KEYWORDS = [
 const STORAGE_KEY_NOTIFICATIONS = 'suncheon_notifications';
 const STORAGE_KEY_KEYWORDS = 'suncheon_interest_keywords';
 
-// Parse date string into Date object
+// Parse date string into Date object (always selecting the end date for ranges)
 export function parseDeadlineDate(rawDate?: string | null): Date | null {
   if (!rawDate) return null;
   const str = rawDate.trim();
+  if (!str) return null;
 
-  // If contains range (e.g. 2026-09-01 ~ 2026-09-30), take the end date
-  const parts = str.split(/[~–-]\s*/);
-  const targetStr = parts.length > 1 && parts[1].length >= 8 ? parts[1].trim() : str;
+  const foundDates: Date[] = [];
 
-  // Match YYYY-MM-DD or YYYY.MM.DD
-  const m1 = targetStr.match(/(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
-  if (m1) {
-    const year = parseInt(m1[1], 10);
-    const month = parseInt(m1[2], 10) - 1;
-    const day = parseInt(m1[3], 10);
-    return new Date(year, month, day);
+  // Match all YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD
+  const regexFull = /(\d{4})[./-](\d{1,2})[./-](\d{1,2})/g;
+  let match: RegExpExecArray | null;
+  while ((match = regexFull.exec(str)) !== null) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+    if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      foundDates.push(new Date(Date.UTC(year, month, day, 14, 59, 59))); // End of day in KST (UTC 14:59:59 = KST 23:59:59)
+    }
   }
 
-  // Match YYYY년 M월 D일
-  const m2 = targetStr.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
-  if (m2) {
-    const year = parseInt(m2[1], 10);
-    const month = parseInt(m2[2], 10) - 1;
-    const day = parseInt(m2[3], 10);
-    return new Date(year, month, day);
+  // Match all YYYY년 M월 D일
+  const regexKorean = /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/g;
+  while ((match = regexKorean.exec(str)) !== null) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+    if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      foundDates.push(new Date(Date.UTC(year, month, day, 14, 59, 59)));
+    }
+  }
+
+  // Return the last date in the string (the end date / deadline of the range)
+  if (foundDates.length > 0) {
+    return foundDates[foundDates.length - 1];
   }
 
   return null;
 }
 
-// Calculate D-Day: returns number of days remaining (0 = today, negative = past)
+// Calculate D-Day in KST timezone: returns number of days remaining (0 = today, negative = past)
 export function calculateDDay(targetDate: Date): number {
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const target = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-  const diffTime = target.getTime() - today.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Calculate relative to KST (UTC+9)
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const todayUtc = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate());
+
+  const kstTarget = new Date(targetDate.getTime() + 9 * 60 * 60 * 1000);
+  const targetUtc = Date.UTC(kstTarget.getUTCFullYear(), kstTarget.getUTCMonth(), kstTarget.getUTCDate());
+
+  const diffMs = targetUtc - todayUtc;
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
 }
 
 function getUserStorageKey(baseKey: string, userEmail?: string): string {

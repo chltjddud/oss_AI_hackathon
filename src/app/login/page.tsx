@@ -70,6 +70,13 @@ export default function LoginPage() {
         throw new Error('올바른 이메일 형식을 입력해 주세요.');
       }
 
+      if (typeof window !== 'undefined') {
+        const deletedList = JSON.parse(localStorage.getItem('suncheon_deleted_accounts') || '[]');
+        if (deletedList.includes(targetEmail)) {
+          throw new Error('탈퇴 처리된 계정입니다. 해당 이메일로는 다시 로그인하거나 가입할 수 없습니다.');
+        }
+      }
+
       if (mode === 'login') {
         let loginSuccess = false;
 
@@ -338,7 +345,7 @@ export default function LoginPage() {
           {/* Registration Info Tip */}
           <div className="mt-6 p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-[11px] sm:text-xs text-emerald-900 leading-relaxed">
             <p className="font-bold flex items-center gap-1.5 text-emerald-950 mb-1">
-              💡 간편 회원가입 안내
+              [안내] 간편 회원가입 안내
             </p>
             <p className="text-slate-600">
               별도의 확인 이메일 수신 대기 없이, 가입 버튼을 누르면 <strong>즉시 회원 등록 및 로그인</strong>되어 순천 혜택 보관함과 모든 맞춤 서비스를 바로 이용하실 수 있습니다.

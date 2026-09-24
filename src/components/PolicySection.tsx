@@ -8,6 +8,7 @@ import { Gov24Item } from './SupportSection';
 import { supabase } from '@/lib/supabase';
 import AiSummaryModal from '@/components/AiSummaryModal';
 import { AiSummaryResult } from '@/lib/summarizer';
+import { saveBookmarkToDb, removeBookmarkFromDb } from '@/lib/bookmarks';
 
 interface PolicySectionProps {
   initialWelfare: CrawledItem[];
@@ -157,43 +158,46 @@ export default function PolicySection({
 
     const id = policy.id;
     const wasSaved = savedPolicyIds.includes(id);
-    const next = wasSaved ? savedPolicyIds.filter(item => item !== id) : [...savedPolicyIds, id];
-    setSavedPolicyIds(next);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`suncheon_saved_policies_${currentUserEmail}`, JSON.stringify(next));
-      localStorage.setItem('suncheon_saved_policies', JSON.stringify(next));
-      window.dispatchEvent(new Event('bookmark_changed'));
-    }
 
-    showToast(wasSaved ? '보관함에서 삭제되었습니다.' : '혜택 보관함에 저장되었습니다.');
-
-    // Sync to Supabase DB if logged in
-    const targetEmail = currentUserEmail;
-    try {
-      if (wasSaved) {
-        await supabase
-          .from('saved_policies')
-          .delete()
-          .match({ user_email: targetEmail, policy_id: id });
-      } else {
-        await supabase
-          .from('saved_policies')
-          .upsert({
-            user_email: targetEmail,
-            policy_id: id,
-            policy_title: policy.title,
-            policy_org: policy.org,
-            policy_data: {
-              dept: policy.dept,
-              target: policy.target,
-              scope: policy.scope,
-              url: policy.url,
-              deadline: policy.postedAt
-            }
-          }, { onConflict: 'user_email,policy_id' });
+    if (wasSaved) {
+      const res = await removeBookmarkFromDb(currentUserEmail, id);
+      if (!res.success) {
+        showToast(`보관함 삭제 실패: ${res.error || '네트워크 상태를 확인해 주세요.'}`);
+        return;
       }
-    } catch (err) {
-      console.warn('DB bookmark sync skipped:', err);
+      const next = savedPolicyIds.filter(item => item !== id);
+      setSavedPolicyIds(next);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`suncheon_saved_policies_${currentUserEmail}`, JSON.stringify(next));
+        localStorage.setItem('suncheon_saved_policies', JSON.stringify(next));
+        window.dispatchEvent(new Event('bookmark_changed'));
+      }
+      showToast('보관함에서 삭제되었습니다.');
+    } else {
+      const res = await saveBookmarkToDb(currentUserEmail, {
+        id: policy.id,
+        title: policy.title,
+        org: policy.org,
+        dept: policy.dept,
+        target: policy.target,
+        category: policy.categories?.[0] || '',
+        scope: policy.scope,
+        url: policy.url,
+        deadline: policy.postedAt,
+        description: policy.description
+      });
+      if (!res.success) {
+        showToast(`보관함 저장 실패: ${res.error || '네트워크 상태를 확인해 주세요.'}`);
+        return;
+      }
+      const next = [...savedPolicyIds, id];
+      setSavedPolicyIds(next);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`suncheon_saved_policies_${currentUserEmail}`, JSON.stringify(next));
+        localStorage.setItem('suncheon_saved_policies', JSON.stringify(next));
+        window.dispatchEvent(new Event('bookmark_changed'));
+      }
+      showToast('혜택 보관함에 저장되었습니다.');
     }
   };
 
@@ -476,7 +480,7 @@ export default function PolicySection({
   };
 
   return (
-    <div className="w-full text-slate-800">
+    <div className="w-full max-w-full overflow-x-hidden text-slate-800">
       {/* Hero Header */}
       <div className="mb-8 text-center py-10 bg-white rounded-3xl shadow-xs border border-emerald-100">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-3">
@@ -670,30 +674,30 @@ export default function PolicySection({
           paginatedPolicies.map((p, idx) => (
             <div
               key={`policy-${p.id || idx}`}
-              className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between group"
+              className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between group min-w-0 overflow-hidden"
             >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold border ${getScopeBadgeStyle(p.scope)}`}>
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-1.5 mb-2.5 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold border shrink-0 ${getScopeBadgeStyle(p.scope)}`}>
                       {p.scopeLabel}
                     </span>
                     <span 
                       title={p.org}
-                      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 max-w-[200px] truncate shrink-0"
+                      className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 max-w-[130px] sm:max-w-[200px] truncate"
                     >
                       {p.org}
                     </span>
                   </div>
                   {p.categories.length > 0 && (
-                    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 shrink-0">
+                    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-700 shrink-0 text-[11px]">
                       {p.categories[0]}
                       {p.categories.length > 1 && ` 외 ${p.categories.length - 1}`}
                     </span>
                   )}
                 </div>
 
-                <h3 className="font-bold text-base sm:text-lg text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-2 mb-3">
+                <h3 className="font-bold text-base sm:text-lg text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-2 mb-3 break-keep">
                   {p.title}
                 </h3>
 
@@ -720,7 +724,7 @@ export default function PolicySection({
               </div>
 
               {/* 하단 액션 바: [AI 요약] + [AI 상담] + [보관함] (좌측) / [상세보기 ↗] (우측) */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs mt-auto">
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs mt-auto min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     onClick={() => handleOpenSummary(p)}
@@ -789,41 +793,71 @@ export default function PolicySection({
         )}
       </div>
 
-      {/* Pagination Controls (20 per page) */}
+      {/* Pagination Controls (Windowed & Responsive) */}
       {totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-slate-200">
-          <div className="text-xs sm:text-sm text-slate-500">
-            총 <strong className="text-emerald-700 font-bold">{filteredPolicies.length}</strong>건 중 {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredPolicies.length)}건 표시 (페이지 {currentPage} / {totalPages})
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-slate-200 min-w-0">
+          <div className="text-xs sm:text-sm text-slate-500 text-center sm:text-left">
+            총 <strong className="text-emerald-700 font-bold">{filteredPolicies.length}</strong>건 중 {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredPolicies.length)}건 표시
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5 max-w-full overflow-x-auto py-1">
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 transition-all text-xs font-semibold cursor-pointer disabled:cursor-not-allowed"
+              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 transition-all text-xs font-semibold cursor-pointer disabled:cursor-not-allowed shrink-0"
               aria-label="이전 페이지"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-              <button
-                key={pageNum}
-                onClick={() => setCurrentPage(pageNum)}
-                className={`min-w-[36px] h-9 px-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                  currentPage === pageNum
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700'
-                }`}
-              >
-                {pageNum}
-              </button>
-            ))}
+            {/* Mobile compact indicator */}
+            <span className="sm:hidden px-2 text-xs font-bold text-slate-600 whitespace-nowrap">
+              {currentPage} / {totalPages}
+            </span>
+
+            {/* Desktop windowed pages */}
+            <div className="hidden sm:flex items-center gap-1">
+              {(() => {
+                const pages: (number | string)[] = [];
+                if (totalPages <= 7) {
+                  for (let i = 1; i <= totalPages; i++) pages.push(i);
+                } else if (currentPage <= 4) {
+                  pages.push(1, 2, 3, 4, 5, '...', totalPages);
+                } else if (currentPage >= totalPages - 3) {
+                  pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+                } else {
+                  pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+                }
+                return pages.map((pageNum, pIdx) => {
+                  if (pageNum === '...') {
+                    return (
+                      <span key={`dots-${pIdx}`} className="px-2 text-slate-400 text-xs">
+                        ...
+                      </span>
+                    );
+                  }
+                  const num = Number(pageNum);
+                  return (
+                    <button
+                      key={`page-${num}`}
+                      onClick={() => setCurrentPage(num)}
+                      className={`min-w-[34px] h-8 px-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                        currentPage === num
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  );
+                });
+              })()}
+            </div>
 
             <button
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 transition-all text-xs font-semibold cursor-pointer disabled:cursor-not-allowed"
+              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 transition-all text-xs font-semibold cursor-pointer disabled:cursor-not-allowed shrink-0"
               aria-label="다음 페이지"
             >
               <ChevronRight className="w-4 h-4" />

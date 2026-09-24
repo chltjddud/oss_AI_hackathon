@@ -367,10 +367,15 @@ export default function MyPage() {
     }
   };
 
-  // 회원 탈퇴 핸들러
+  // 회원 탈퇴 핸들러 (서버 처리 후 완료 확인)
   const handleDeleteAccount = async () => {
     if (deleteConfirmText.trim() !== '회원탈퇴') {
       setDeleteError('"회원탈퇴"를 정확히 입력해 주세요.');
+      return;
+    }
+
+    if (!user?.email) {
+      setDeleteError('탈퇴할 사용자 계정 정보를 확인할 수 없습니다.');
       return;
     }
 
@@ -378,15 +383,43 @@ export default function MyPage() {
     setDeleteError('');
 
     try {
+      // 1. 서버 측 탈퇴 엔드포인트 호출 및 확인
+      const res = await fetch('/api/auth/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          password: currentPassword || undefined,
+          confirmText: deleteConfirmText.trim()
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || '서버 측 회원 탈퇴 처리에 실패했습니다.');
+      }
+
+      // 2. 서버 완료 확인 후 로컬 상태 정리 및 재로그인 차단 등록
       if (typeof window !== 'undefined') {
-        // 등록 계정 목록에서 제거
-        if (user?.email) {
-          const registered = JSON.parse(
-            localStorage.getItem('suncheon_registered_accounts') || '[]'
-          );
-          const filtered = registered.filter((acc: any) => acc.email !== user.email);
-          localStorage.setItem('suncheon_registered_accounts', JSON.stringify(filtered));
+        const email = user.email.trim().toLowerCase();
+
+        // 탈퇴 계정 블랙리스트에 등록하여 재로그인 완전 차단
+        const deletedList = JSON.parse(localStorage.getItem('suncheon_deleted_accounts') || '[]');
+        if (!deletedList.includes(email)) {
+          deletedList.push(email);
+          localStorage.setItem('suncheon_deleted_accounts', JSON.stringify(deletedList));
         }
+
+        // 등록 계정 목록에서 제거
+        const registered = JSON.parse(
+          localStorage.getItem('suncheon_registered_accounts') || '[]'
+        );
+        const filtered = registered.filter((acc: { email?: string }) => (acc.email || '').trim().toLowerCase() !== email);
+        localStorage.setItem('suncheon_registered_accounts', JSON.stringify(filtered));
+
+        // 사용자 보관함 데이터 정리
+        localStorage.removeItem(`suncheon_saved_policies_${email}`);
 
         // 세션 정보 완전 삭제
         localStorage.removeItem('suncheon_auth_session');
@@ -402,11 +435,12 @@ export default function MyPage() {
         window.dispatchEvent(new Event('bookmark_changed'));
       }
 
-      alert('회원 탈퇴가 완료되었습니다. 그동안 순천시 혜택 모음을 이용해 주셔서 감사합니다.');
+      alert('회원 탈퇴 및 계정 데이터 처리가 완료되었습니다. 그동안 순천시 혜택 모음을 이용해 주셔서 감사합니다.');
       router.push('/');
       router.refresh();
-    } catch (err: any) {
-      setDeleteError(err.message || '탈퇴 처리 중 오류가 발생했습니다.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '탈퇴 처리 중 오류가 발생했습니다.';
+      setDeleteError(message);
       setIsDeleting(false);
     }
   };
@@ -699,7 +733,7 @@ export default function MyPage() {
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50'
                       }`}
                     >
-                      {selected ? `✓ ${item}` : `+ ${item}`}
+                      {selected ? `[선택] ${item}` : `+ ${item}`}
                     </button>
                   );
                 })}

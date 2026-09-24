@@ -24,7 +24,7 @@ export interface CitizenRequest {
   expected_effect?: string;
   author_name: string;
   likes_count: number;
-  status: '접수완료' | '검토중' | '시정반영';
+  status: '접수완료' | '검토중' | '시정반영' | '임시저장 (미전송)';
   created_at: string;
 }
 
@@ -135,30 +135,79 @@ export default function CitizenRequestSection() {
       }
     }
 
+    // Load liked map from localStorage
+    try {
+      const savedLikes = localStorage.getItem('suncheon_liked_requests');
+      if (savedLikes) {
+        setLikedMap(JSON.parse(savedLikes));
+      }
+    } catch {}
+
     loadRequests();
   }, []);
 
   const handleLike = async (id: string) => {
-    if (likedMap[id]) return;
+    if (likedMap[id]) {
+      alert('이미 공감하신 제안입니다.');
+      return;
+    }
 
-    setLikedMap(prev => ({ ...prev, [id]: true }));
+    // 1. Optimistic update
+    setLikedMap(prev => {
+      const next = { ...prev, [id]: true };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('suncheon_liked_requests', JSON.stringify(next));
+      }
+      return next;
+    });
+
     setRequests(prev =>
       prev.map(item =>
         item.id === id ? { ...item, likes_count: (item.likes_count || 0) + 1 } : item
       )
     );
 
-    // Try Supabase update if possible
+    // 2. Call atomic like API
     try {
-      const target = requests.find(r => r.id === id);
-      if (target) {
-        await supabase
-          .from('citizen_requests')
-          .update({ likes_count: (target.likes_count || 0) + 1 })
-          .eq('id', id);
+      let userIdentifier = 'anonymous-client';
+      if (typeof window !== 'undefined') {
+        const authStr = localStorage.getItem('suncheon_auth_session');
+        if (authStr) {
+          try {
+            userIdentifier = JSON.parse(authStr).email || userIdentifier;
+          } catch {}
+        }
       }
-    } catch (e) {
-      // ignore
+
+      const res = await fetch('/api/support/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: id, userIdentifier })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || '공감 서버 저장 실패');
+      }
+    } catch (e: unknown) {
+      // 3. Rollback optimistic UI on failure
+      setLikedMap(prev => {
+        const next = { ...prev };
+        delete next[id];
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('suncheon_liked_requests', JSON.stringify(next));
+        }
+        return next;
+      });
+
+      setRequests(prev =>
+        prev.map(item =>
+          item.id === id ? { ...item, likes_count: Math.max((item.likes_count || 1) - 1, 0) } : item
+        )
+      );
+
+      const message = e instanceof Error ? e.message : '공감 처리에 실패했습니다.';
+      alert(`공감 처리 실패: ${message}`);
     }
   };
 
@@ -181,9 +230,12 @@ export default function CitizenRequestSection() {
       created_at: new Date().toISOString().split('T')[0],
     };
 
-    // Try Supabase insertion
+    // 1. Try Supabase insertion first to verify server save
+    let serverSaved = false;
+    let errorMessage = '';
+
     try {
-      const { error } = await supabase.from('citizen_requests').insert([
+      const { data, error } = await supabase.from('citizen_requests').insert([
         {
           title: newRequest.title,
           category: newRequest.category,
@@ -193,37 +245,58 @@ export default function CitizenRequestSection() {
           likes_count: 0,
           status: '접수완료'
         }
-      ]);
+      ]).select();
 
-      if (error) {
-        console.warn('Supabase not yet configured, saving locally:', error.message);
+      if (!error && data && data.length > 0) {
+        serverSaved = true;
+        newRequest.id = data[0].id || newRequest.id;
+      } else if (error) {
+        errorMessage = error.message;
       }
-    } catch (err) {
-      console.warn('Supabase request note:', err);
+    } catch (err: unknown) {
+      errorMessage = err instanceof Error ? err.message : '네트워크 요청 실패';
     }
 
-    // Save locally
-    const updated = [newRequest, ...requests];
-    setRequests(updated);
-    localStorage.setItem('suncheon_citizen_requests', JSON.stringify(updated));
+    if (serverSaved) {
+      // Server save confirmed -> 접수완료
+      newRequest.status = '접수완료';
+      const updated = [newRequest, ...requests];
+      setRequests(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('suncheon_citizen_requests', JSON.stringify(updated));
+      }
 
-    setStatusMsg({
-      type: 'success',
-      text: '지원 요청이 성공적으로 접수되었습니다. 순천시정 검토에 소중히 활용됩니다.'
-    });
+      setStatusMsg({
+        type: 'success',
+        text: '지원 요청이 성공적으로 서버에 접수되었습니다. 순천시정 검토에 소중히 활용됩니다.'
+      });
 
-    setFormData({
-      title: '',
-      category: '청년·주거',
-      content: '',
-      expected_effect: '',
-      author_name: '',
-    });
+      setFormData({
+        title: '',
+        category: '청년·주거',
+        content: '',
+        expected_effect: '',
+        author_name: '',
+      });
 
-    setTimeout(() => {
-      setIsModalOpen(false);
-      setStatusMsg(null);
-    }, 1200);
+      setTimeout(() => {
+        setIsModalOpen(false);
+        setStatusMsg(null);
+      }, 1600);
+    } else {
+      // UX-01: 서버 실패 시 '접수 완료'로 표시하지 않고 '이 기기에 임시 저장'으로 구별
+      newRequest.status = '임시저장 (미전송)';
+      const updated = [newRequest, ...requests];
+      setRequests(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('suncheon_citizen_requests', JSON.stringify(updated));
+      }
+
+      setStatusMsg({
+        type: 'error',
+        text: `서버 저장 실패 (${errorMessage || '통신 오류'}). 제안이 '이 기기에 임시 저장'되었습니다. 네트워크 확인 후 다시 접수해 주세요.`
+      });
+    }
 
     setSubmitting(false);
   };
@@ -240,6 +313,14 @@ export default function CitizenRequestSection() {
   });
 
   const getStatusBadge = (status: string) => {
+    if (status === '임시저장 (미전송)') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <AlertCircle className="w-3 h-3 text-rose-500" />
+          이 기기에 임시 저장
+        </span>
+      );
+    }
     if (status === '시정반영') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">

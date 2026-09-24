@@ -137,6 +137,12 @@ export default function AiSummaryModal({
                     summary.requiredDocuments[0].includes('서류 없음') ||
                     summary.requiredDocuments[0].includes('불필요'));
 
+                const isUnconfirmedDoc =
+                  summary.requiredDocuments.length === 1 &&
+                  (summary.requiredDocuments[0].includes('확인 필요') ||
+                    summary.requiredDocuments[0].includes('미기재') ||
+                    summary.requiredDocuments[0].includes('공고 원문 확인'));
+
                 if (isNoDocRequired) {
                   return (
                     <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200">
@@ -176,12 +182,42 @@ export default function AiSummaryModal({
                   );
                 }
 
+                if (isUnconfirmedDoc) {
+                  return (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200">
+                      <div className="flex items-center justify-between gap-2 mb-2.5">
+                        <div className="flex items-center gap-2 text-slate-800 font-bold text-xs sm:text-sm">
+                          <FileText className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>구비서류 확인 상태: 공고 원문 확인 필요</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full">
+                          원문 확인 요망
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed font-medium mb-3">
+                        공고 원문 요약본에 구비서류 정보가 명시되어 있지 않거나 별도 확인이 필요합니다. 필수 서류 및 제출 자격은 공식 공고문 원본 링크를 직접 확인해 주세요.
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <a
+                          href={url && url !== '#' ? url : 'https://www.gov.kr'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-1.5 flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition-colors shadow-xs group cursor-pointer"
+                        >
+                          <span>공고 원문 직접 확인하기</span>
+                          <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/80 border border-amber-200">
                     <div className="flex items-center justify-between gap-2 mb-3">
                       <div className="flex items-center gap-2 text-amber-950 font-bold text-xs sm:text-sm">
                         <FileText className="w-4 h-4 text-amber-700 shrink-0" />
-                        <span>신청 필수 구비서류 ({summary.requiredDocuments.length}건)</span>
+                        <span>원문 확인 구비서류 ({summary.requiredDocuments.length}건)</span>
                       </div>
                       <a
                         href="https://www.gov.kr"

@@ -299,41 +299,71 @@ export default function NoticeSection({
         )}
       </div>
 
-      {/* Pagination Controls (20 per page) */}
+      {/* Pagination Controls (Windowed & Responsive) */}
       {totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-slate-200">
-          <div className="text-xs sm:text-sm text-slate-500">
-            총 <strong className="text-emerald-700 font-bold">{filteredNotices.length}</strong>건 중 {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredNotices.length)}건 표시 (페이지 {currentPage} / {totalPages})
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-slate-200 min-w-0">
+          <div className="text-xs sm:text-sm text-slate-500 text-center sm:text-left">
+            총 <strong className="text-emerald-700 font-bold">{filteredNotices.length}</strong>건 중 {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredNotices.length)}건 표시
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5 max-w-full overflow-x-auto py-1">
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 transition-all text-xs font-semibold cursor-pointer disabled:cursor-not-allowed"
+              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 transition-all text-xs font-semibold cursor-pointer disabled:cursor-not-allowed shrink-0"
               aria-label="이전 페이지"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-              <button
-                key={pageNum}
-                onClick={() => setCurrentPage(pageNum)}
-                className={`min-w-[36px] h-9 px-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                  currentPage === pageNum
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700'
-                }`}
-              >
-                {pageNum}
-              </button>
-            ))}
+            {/* Mobile compact indicator */}
+            <span className="sm:hidden px-2 text-xs font-bold text-slate-600 whitespace-nowrap">
+              {currentPage} / {totalPages}
+            </span>
+
+            {/* Desktop windowed pages */}
+            <div className="hidden sm:flex items-center gap-1">
+              {(() => {
+                const pages: (number | string)[] = [];
+                if (totalPages <= 7) {
+                  for (let i = 1; i <= totalPages; i++) pages.push(i);
+                } else if (currentPage <= 4) {
+                  pages.push(1, 2, 3, 4, 5, '...', totalPages);
+                } else if (currentPage >= totalPages - 3) {
+                  pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+                } else {
+                  pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+                }
+                return pages.map((pageNum, pIdx) => {
+                  if (pageNum === '...') {
+                    return (
+                      <span key={`dots-${pIdx}`} className="px-2 text-slate-400 text-xs">
+                        ...
+                      </span>
+                    );
+                  }
+                  const num = Number(pageNum);
+                  return (
+                    <button
+                      key={`page-${num}`}
+                      onClick={() => setCurrentPage(num)}
+                      className={`min-w-[34px] h-8 px-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                        currentPage === num
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  );
+                });
+              })()}
+            </div>
 
             <button
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 transition-all text-xs font-semibold cursor-pointer disabled:cursor-not-allowed"
+              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600 transition-all text-xs font-semibold cursor-pointer disabled:cursor-not-allowed shrink-0"
               aria-label="다음 페이지"
             >
               <ChevronRight className="w-4 h-4" />

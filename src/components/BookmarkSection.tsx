@@ -19,6 +19,7 @@ import {
   Lock
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { removeBookmarkFromDb } from '@/lib/bookmarks';
 import AiSummaryModal from '@/components/AiSummaryModal';
 import { AiSummaryResult } from '@/lib/summarizer';
 import { ApplicablePolicy } from '@/lib/api';
@@ -206,6 +207,14 @@ export default function BookmarkSection({
   }, []);
 
   const handleRemovePolicy = async (policyId: string) => {
+    if (currentUserEmail) {
+      const res = await removeBookmarkFromDb(currentUserEmail, policyId);
+      if (!res.success) {
+        showToast(`보관함 삭제 실패: ${res.error || '네트워크 상태를 확인해 주세요.'}`);
+        return;
+      }
+    }
+
     const next = savedPolicyIds.filter(id => id !== policyId);
     setSavedPolicyIds(next);
 
@@ -218,17 +227,6 @@ export default function BookmarkSection({
     }
 
     showToast('보관함에서 삭제되었습니다.');
-
-    if (currentUserEmail) {
-      try {
-        await supabase
-          .from('saved_policies')
-          .delete()
-          .match({ user_email: currentUserEmail, policy_id: policyId });
-      } catch (err) {
-        console.warn('Delete from Supabase skipped:', err);
-      }
-    }
   };
 
   const handleOpenSummary = async (p: UnifiedPolicy) => {

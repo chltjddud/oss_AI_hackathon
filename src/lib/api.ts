@@ -173,8 +173,8 @@ export async function fetchSuncheonApplicableBenefits(forceRefresh = false): Pro
     fetchYouthPolicies(1, 30)
   ]);
 
-  // 타 지자체 전용 정책 필터링 목록 (순천시민은 대상이 아닌 개별 시/군/구 전용 혜택 제외)
-  // 순천시민 및 전라남도 전체 대상(순천 포함) 정책만 엄격히 필터링
+  // 타 지자체 전용 정책 필터링 및 지역 적격성 검증 (MATCH-01)
+  // 순천시민, 전라남도 광역, 검증된 전국민 혜택만 확정 승인하고 불명 항목은 자동 승인하지 않음
   const isEligibleForSuncheon = (org: string, target?: string, desc?: string, title?: string): boolean => {
     const fullText = `${org} ${target || ''} ${desc || ''} ${title || ''}`;
 
@@ -183,7 +183,7 @@ export async function fetchSuncheonApplicableBenefits(forceRefresh = false): Pro
       return true;
     }
 
-    // 2. 타 시/군/구 (여수, 목포, 북구, 서구, 남구, 동구, 광산구, 나주, 광양 등)가 org 또는 title에 명시된 경우 100% 제거!
+    // 2. 타 시/군/구 (여수, 목포, 북구, 서구, 남구, 동구, 광산구, 나주, 광양 등) 명시된 경우 제외
     const otherDistricts = [
       '여수', '목포', '북구', '서구', '남구', '동구', '광산구', '광산',
       '나주', '광양', '담양', '곡성', '구례', '고흥', '보성', '화순',
@@ -217,12 +217,29 @@ export async function fetchSuncheonApplicableBenefits(forceRefresh = false): Pro
     }
 
     // 4. 전라남도 광역 정책: 특정 시군이 붙지 않은 순수 전라남도/전남도청 광역 사업만 포함
-    if (org.includes('전남광주통합특별시') || org.includes('전라남도') || org.includes('전남도청')) {
+    if (org.includes('전남광주통합특별시') || org.includes('전라남도') || org.includes('전남도청') || org.includes('전남')) {
       return true;
     }
 
-    // 5. 중앙부처 / 전국 단위 공공 정책 (전국민 누구나, 순천시민 포함)
-    return true;
+    // 5. 중앙부처 및 전국민 정책 근거 검증 (MATCH-01: 불명 항목 자동 승인 금지)
+    const centralAgencies = [
+      '보건복지부', '고용노동부', '국토교통부', '중소벤처기업부', '여성가족부',
+      '행정안전부', '교육부', '과학기술정보통신부', '문화체육관광부', '농림축산식품부',
+      '산업통상자원부', '환경부', '해양수산부', '국가보훈부', '국세청', '병무청',
+      '국민권익위원회', '금융위원회', '공정거래위원회', '국민건강보험공단', '국민연금공단',
+      '근로복지공단', '한국토지주택공사', '서민금융진흥원', '소상공인시장진흥공단'
+    ];
+
+    const hasCentralAgency = centralAgencies.some(agency => org.includes(agency));
+    const hasNationalKeyword = fullText.includes('전국민') || fullText.includes('전국') || fullText.includes('대한민국 국민') || fullText.includes('중앙행정기관');
+
+    // 명시적인 중앙부처/전국민 근거가 있는 경우에만 전국 적용으로 인정
+    if (hasCentralAgency || hasNationalKeyword) {
+      return true;
+    }
+
+    // 근거가 없는 지역 불명 항목은 순천 적용 대상에서 자동 승인하지 않음
+    return false;
   };
 
   const policyMap = new Map<string, ApplicablePolicy>();

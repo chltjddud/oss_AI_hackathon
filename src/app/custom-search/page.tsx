@@ -6,6 +6,7 @@ import AiSummaryModal from '@/components/AiSummaryModal';
 import AiLoadingCanvas from '@/components/AiLoadingCanvas';
 import { AiSummaryResult } from '@/lib/summarizer';
 import { supabase } from '@/lib/supabase';
+import { saveBookmarkToDb, removeBookmarkFromDb } from '@/lib/bookmarks';
 import {
   Sparkles,
   Search,
@@ -131,36 +132,46 @@ export default function CustomSearchPage() {
 
     const id = policy.id;
     const wasSaved = savedPolicyIds.includes(id);
-    const next = wasSaved ? savedPolicyIds.filter(item => item !== id) : [...savedPolicyIds, id];
-    setSavedPolicyIds(next);
 
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`suncheon_saved_policies_${currentUserEmail}`, JSON.stringify(next));
-      localStorage.setItem('suncheon_saved_policies', JSON.stringify(next));
-      window.dispatchEvent(new Event('bookmark_changed'));
-    }
-
-    showToast(wasSaved ? '보관함에서 삭제되었습니다.' : '내 보관함에 추가되었습니다.');
-
-    const targetEmail = currentUserEmail;
-    try {
-      if (wasSaved) {
-        await supabase.from('saved_policies').delete().match({ user_email: targetEmail, policy_id: id });
-      } else {
-        await supabase.from('saved_policies').upsert({
-          user_email: targetEmail,
-          policy_id: id,
-          policy_title: policy.title,
-          policy_category: policy.category,
-          policy_org: policy.org,
-          policy_dept: policy.dept,
-          policy_target: policy.target,
-          policy_url: policy.url,
-          policy_scope: policy.scopeLabel
-        }, { onConflict: 'user_email,policy_id' });
+    // Call unified bookmark DB handler first
+    if (wasSaved) {
+      const res = await removeBookmarkFromDb(currentUserEmail, id);
+      if (!res.success) {
+        showToast(`보관함 삭제 실패: ${res.error || '네트워크 상태를 확인해 주세요.'}`);
+        return;
       }
-    } catch (err) {
-      console.warn('Bookmark sync note:', err);
+      const next = savedPolicyIds.filter(item => item !== id);
+      setSavedPolicyIds(next);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`suncheon_saved_policies_${currentUserEmail}`, JSON.stringify(next));
+        localStorage.setItem('suncheon_saved_policies', JSON.stringify(next));
+        window.dispatchEvent(new Event('bookmark_changed'));
+      }
+      showToast('보관함에서 삭제되었습니다.');
+    } else {
+      const res = await saveBookmarkToDb(currentUserEmail, {
+        id: policy.id,
+        title: policy.title,
+        org: policy.org,
+        dept: policy.dept,
+        target: policy.target,
+        category: policy.category,
+        scope: policy.scopeLabel,
+        url: policy.url,
+        description: policy.description
+      });
+      if (!res.success) {
+        showToast(`보관함 저장 실패: ${res.error || '네트워크 상태를 확인해 주세요.'}`);
+        return;
+      }
+      const next = [...savedPolicyIds, id];
+      setSavedPolicyIds(next);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`suncheon_saved_policies_${currentUserEmail}`, JSON.stringify(next));
+        localStorage.setItem('suncheon_saved_policies', JSON.stringify(next));
+        window.dispatchEvent(new Event('bookmark_changed'));
+      }
+      showToast('내 보관함에 추가되었습니다.');
     }
   };
 
